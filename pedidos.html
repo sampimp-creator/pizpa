@@ -1,0 +1,1481 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pizpa · Hacer Pedido</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<!-- Leaflet para mapa preciso -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+:root {
+  --black:#111110; --dark:#1a1a18; --metal:#222220; --surface:#2a2a28;
+  --yellow:#E8A820; --cream:#F5EDD6; --muted:#888880; --green:#5fdd8a; --red:#ff6b6b;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{background:var(--black);color:var(--cream);font-family:"DM Sans",sans-serif;min-height:100vh;overflow-x:hidden;}
+
+/* ── HEADER ── */
+.site-header{position:sticky;top:0;z-index:100;background:rgba(17,17,16,0.97);backdrop-filter:blur(12px);border-bottom:1px solid rgba(232,168,32,0.15);padding:0 24px;display:flex;align-items:center;justify-content:space-between;height:64px;}
+.nav-logo img{height:38px;display:block;}
+.header-back{font-size:0.72rem;letter-spacing:2px;color:var(--muted);text-decoration:none;border:1px solid rgba(255,255,255,0.1);padding:8px 16px;transition:all 0.2s;}
+.header-back:hover{color:var(--cream);border-color:rgba(255,255,255,0.25);}
+
+/* ── HERO ── */
+.order-hero{background:linear-gradient(135deg,var(--dark) 0%,#1f1e1a 100%);border-bottom:1px solid rgba(232,168,32,0.1);padding:44px 24px 32px;text-align:center;position:relative;overflow:hidden;}
+.order-hero::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse at 50% -20%,rgba(232,168,32,0.1) 0%,transparent 65%);}
+.order-hero h1{font-family:"Bebas Neue",sans-serif;font-size:clamp(2.6rem,6vw,4.2rem);letter-spacing:4px;color:var(--cream);position:relative;}
+.order-hero h1 span{color:var(--yellow);}
+.order-hero p{font-size:0.82rem;color:var(--muted);margin-top:8px;letter-spacing:1px;position:relative;}
+
+/* ── LAYOUT ── */
+.page-layout{display:grid;grid-template-columns:1fr 340px;max-width:1200px;margin:0 auto;}
+@media(max-width:860px){.page-layout{grid-template-columns:1fr;}}
+.menu-panel{padding:24px 20px;border-right:1px solid rgba(255,255,255,0.05);min-height:calc(100vh - 120px);}
+
+/* ── TABS ── */
+.tab-group-header{display:flex;gap:4px;margin-bottom:8px;}
+.tab-group-btn{font-family:"Bebas Neue",sans-serif;letter-spacing:3px;font-size:0.7rem;padding:8px 18px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;transition:all 0.15s;border-radius:2px;}
+.tab-group-btn.active{background:rgba(232,168,32,0.15);border-color:var(--yellow);color:var(--yellow);}
+.cat-tabs{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:24px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);}
+.cat-tab{font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.72rem;padding:6px 12px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:var(--muted);cursor:pointer;transition:all 0.15s;border-radius:2px;}
+.cat-tab:hover{color:var(--cream);border-color:rgba(255,255,255,0.2);}
+.cat-tab.active{background:rgba(232,168,32,0.12);border-color:rgba(232,168,32,0.45);color:var(--yellow);}
+.section-label{font-family:"Bebas Neue",sans-serif;font-size:0.6rem;letter-spacing:4px;color:var(--muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid rgba(255,255,255,0.06);}
+.items-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:2px;}
+
+/* ── CARDS ── */
+.item-card{background:var(--dark);border:1px solid rgba(255,255,255,0.05);padding:14px;display:flex;flex-direction:column;gap:8px;transition:all 0.15s;}
+.item-card:hover{border-color:rgba(232,168,32,0.2);background:rgba(232,168,32,0.025);}
+.item-card.in-cart{border-color:rgba(232,168,32,0.35);background:rgba(232,168,32,0.04);}
+.item-name{font-weight:600;font-size:0.9rem;color:var(--cream);line-height:1.3;}
+.item-desc{font-size:0.74rem;color:var(--muted);line-height:1.5;flex:1;}
+.item-footer{display:flex;align-items:center;justify-content:space-between;margin-top:2px;gap:8px;}
+.item-price{font-family:"Bebas Neue",sans-serif;font-size:1.3rem;color:var(--yellow);letter-spacing:1px;white-space:nowrap;}
+.item-price sup{font-size:0.62rem;margin-right:1px;}
+
+/* ── QTY ── */
+.qty-ctrl{display:flex;align-items:center;}
+.qty-btn{width:26px;height:26px;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--cream);cursor:pointer;font-size:0.95rem;line-height:1;transition:all 0.15s;display:flex;align-items:center;justify-content:center;}
+.qty-btn:hover{background:rgba(232,168,32,0.15);border-color:var(--yellow);color:var(--yellow);}
+.qty-btn.add-btn{background:rgba(232,168,32,0.1);border-color:rgba(232,168,32,0.4);color:var(--yellow);width:auto;padding:0 11px;font-size:0.7rem;letter-spacing:1px;font-family:"Bebas Neue",sans-serif;}
+.qty-btn.add-btn:hover{background:var(--yellow);color:var(--black);}
+.qty-num{width:30px;height:26px;background:rgba(255,255,255,0.04);border-top:1px solid rgba(255,255,255,0.12);border-bottom:1px solid rgba(255,255,255,0.12);border-left:none;border-right:none;color:var(--cream);text-align:center;font-family:"Bebas Neue",sans-serif;font-size:0.95rem;cursor:default;display:flex;align-items:center;justify-content:center;}
+
+/* ── ALITAS: selector inline ── */
+.alitas-panel{background:rgba(232,168,32,0.04);border:1px solid rgba(232,168,32,0.18);border-radius:3px;padding:10px;margin-top:4px;display:flex;flex-direction:column;gap:8px;}
+.alitas-panel-label{font-size:0.58rem;letter-spacing:2px;color:var(--muted);font-family:"Bebas Neue",sans-serif;}
+/* sabores: chips horizontales */
+.sabor-chips{display:flex;flex-wrap:wrap;gap:5px;}
+.sabor-chip{font-size:0.68rem;padding:5px 9px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--muted);cursor:pointer;transition:all 0.15s;border-radius:2px;white-space:nowrap;}
+.sabor-chip:hover{border-color:rgba(232,168,32,0.35);color:var(--cream);}
+.sabor-chip.active{background:rgba(232,168,32,0.12);border-color:var(--yellow);color:var(--yellow);}
+/* cantidades: chips con precio */
+.cant-chips{display:flex;gap:5px;}
+.cant-chip{flex:1;text-align:center;padding:7px 5px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);cursor:pointer;transition:all 0.15s;border-radius:2px;}
+.cant-chip:hover{border-color:rgba(232,168,32,0.3);}
+.cant-chip.active{border-color:var(--yellow);background:rgba(232,168,32,0.08);}
+.cant-chip-qty{font-family:"Bebas Neue",sans-serif;font-size:0.9rem;color:var(--cream);display:block;}
+.cant-chip-price{font-family:"Bebas Neue",sans-serif;font-size:0.72rem;color:var(--yellow);display:block;}
+.alitas-confirm-btn{background:var(--yellow);color:var(--black);border:none;cursor:pointer;font-family:"Bebas Neue",sans-serif;font-size:0.78rem;letter-spacing:2px;padding:8px;border-radius:2px;transition:all 0.15s;width:100%;}
+.alitas-confirm-btn:hover{background:#d4971a;}
+.alitas-confirm-btn:disabled{opacity:0.35;cursor:not-allowed;}
+
+/* ── EXTRAS PIZZA ── */
+.extras-section{margin-top:8px;padding-top:8px;border-top:1px solid rgba(255,255,255,0.06);}
+.extras-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.extras-title{font-size:0.6rem;letter-spacing:2px;color:var(--muted);font-family:"Bebas Neue",sans-serif;}
+.extras-toggle-btn{font-size:0.62rem;color:var(--muted);cursor:pointer;background:none;border:none;letter-spacing:1px;padding:0;transition:color 0.15s;}
+.extras-toggle-btn:hover{color:var(--yellow);}
+.extras-list{overflow:hidden;transition:max-height 0.3s ease;}
+.extras-list.hidden{max-height:0!important;}
+.extra-row{display:flex;align-items:center;padding:5px 8px;border:1px solid rgba(255,255,255,0.07);margin-bottom:2px;cursor:pointer;transition:all 0.12s;border-radius:2px;gap:8px;}
+.extra-row:hover{border-color:rgba(232,168,32,0.2);}
+.extra-row.selected{border-color:rgba(232,168,32,0.4);background:rgba(232,168,32,0.05);}
+.extra-check{width:14px;height:14px;border:1px solid rgba(255,255,255,0.2);border-radius:2px;display:flex;align-items:center;justify-content:center;font-size:0.6rem;flex-shrink:0;color:var(--yellow);}
+.extra-row.selected .extra-check{background:rgba(232,168,32,0.15);border-color:var(--yellow);}
+.extra-name{font-size:0.76rem;color:var(--cream);flex:1;}
+.extra-price-lbl{font-family:"Bebas Neue",sans-serif;font-size:0.82rem;color:var(--muted);margin-left:auto;flex-shrink:0;}
+.extra-row.selected .extra-price-lbl{color:var(--yellow);}
+
+/* ── NOTA ── */
+.note-toggle{font-size:0.64rem;color:var(--muted);cursor:pointer;letter-spacing:1px;background:none;border:none;padding:0;transition:color 0.15s;}
+.note-toggle:hover{color:var(--yellow);}
+.item-note-wrap{display:none;margin-top:3px;}
+.item-note-wrap.open{display:block;}
+.item-note{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--cream);font-size:0.74rem;font-family:"DM Sans",sans-serif;padding:7px 10px;resize:none;border-radius:2px;outline:none;}
+.item-note:focus{border-color:rgba(232,168,32,0.4);}
+
+/* ── CART ── */
+/* ══ CART PANEL — DESKTOP ══ */
+.cart-panel{
+  position:sticky;top:64px;
+  height:calc(100vh - 64px);
+  overflow-y:auto;
+  background:var(--dark);
+  border-left:1px solid rgba(255,255,255,0.06);
+  display:flex;flex-direction:column;
+}
+
+/* ══ OVERLAY ══ */
+.cart-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:199;backdrop-filter:blur(2px);}
+.cart-overlay.show{display:block;}
+
+/* ══ CART PANEL — MÓVIL ══ */
+@media(max-width:860px){
+  body.cart-open{overflow:hidden;}
+
+  .cart-panel{
+    position:fixed;
+    bottom:68px;  /* encima de la barra amarilla */
+    left:0;right:0;top:auto;
+    height:calc(82vh - 68px);
+    border:none;
+    background:var(--dark);
+    transform:translateY(calc(100% + 68px));  /* oculto completamente */
+    transition:transform 0.32s cubic-bezier(0.4,0,0.2,1);
+    z-index:200;
+    border-radius:18px 18px 0 0;
+    box-shadow:0 -8px 40px rgba(0,0,0,0.6);
+    display:flex;flex-direction:column;
+    overflow:hidden;
+  }
+  .cart-panel.open{transform:translateY(0);}
+
+  .cart-panel::before{
+    content:'';display:block;width:40px;height:4px;
+    background:rgba(255,255,255,0.22);border-radius:2px;
+    margin:10px auto 0;flex-shrink:0;
+  }
+}
+
+/* ══ CART INTERNALS — aplican en desktop y móvil ══ */
+.cart-header{
+  padding:16px 16px 12px;
+  border-bottom:1px solid rgba(255,255,255,0.06);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-shrink:0;  /* nunca encoge */
+}
+.cart-title{font-family:"Bebas Neue",sans-serif;font-size:0.95rem;letter-spacing:3px;color:var(--cream);}
+.cart-count{background:var(--yellow);color:var(--black);font-family:"Bebas Neue",sans-serif;font-size:0.82rem;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;}
+.cart-toggle-btn{display:none;background:none;border:none;color:var(--muted);cursor:pointer;font-size:1rem;}
+@media(max-width:860px){.cart-toggle-btn{display:block;}}
+
+.cart-body{
+  flex:1;
+  min-height:0;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+  touch-action:pan-y;  /* permite scroll vertical táctil aunque el body lo tenga bloqueado */
+  padding:8px;
+}
+
+.cart-footer{
+  flex-shrink:0;   /* siempre visible, nunca encoge */
+  padding:13px;
+  border-top:1px solid rgba(255,255,255,0.06);
+}
+.cart-empty{text-align:center;padding:32px 14px;font-size:0.76rem;color:var(--muted);letter-spacing:1px;}
+.cart-empty-icon{font-size:2rem;margin-bottom:8px;opacity:0.3;}
+.cart-item{display:flex;gap:7px;padding:9px 7px;border-bottom:1px solid rgba(255,255,255,0.04);animation:slideIn 0.18s ease;}
+@keyframes slideIn{from{opacity:0;transform:translateX(5px)}to{opacity:1;transform:translateX(0)}}
+.ci-info{flex:1;min-width:0;}
+.ci-name{font-size:0.78rem;font-weight:600;color:var(--cream);line-height:1.3;}
+.ci-sub{font-size:0.65rem;color:var(--muted);margin-top:1px;line-height:1.4;}
+.ci-qty{font-family:"Bebas Neue",sans-serif;font-size:0.8rem;color:var(--muted);white-space:nowrap;}
+.ci-price{font-family:"Bebas Neue",sans-serif;font-size:0.88rem;color:var(--yellow);white-space:nowrap;}
+.ci-del{background:none;border:none;color:rgba(255,107,107,0.35);cursor:pointer;font-size:0.8rem;padding:0 2px;flex-shrink:0;transition:color 0.15s;}
+.ci-del:hover{color:var(--red);}
+.cart-subtotal{display:flex;justify-content:space-between;align-items:center;padding:8px 0;margin-bottom:10px;border-top:1px solid rgba(255,255,255,0.08);}
+.cart-subtotal span:first-child{font-size:0.62rem;letter-spacing:3px;color:var(--muted);}
+.cart-subtotal span:last-child{font-family:"Bebas Neue",sans-serif;font-size:1.5rem;color:var(--yellow);}
+.order-note-wrap{margin-bottom:10px;}
+.order-note-wrap label{display:block;font-size:0.6rem;letter-spacing:2px;color:var(--muted);margin-bottom:5px;}
+.order-note{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--cream);font-size:0.76rem;font-family:"DM Sans",sans-serif;padding:8px 10px;resize:none;height:52px;border-radius:2px;outline:none;}
+.order-note:focus{border-color:rgba(232,168,32,0.4);}
+.btn-send{width:100%;background:#25D366;color:#fff;border:none;cursor:pointer;font-family:"Bebas Neue",sans-serif;font-size:0.95rem;letter-spacing:3px;padding:14px;display:flex;align-items:center;justify-content:center;gap:9px;transition:all 0.2s;border-radius:2px;}
+.btn-send:hover{background:#1eb857;transform:translateY(-1px);box-shadow:0 4px 18px rgba(37,211,102,0.22);}
+/* Barra flotante del carrito — siempre visible en móvil */
+.mobile-cart-bar{
+  display:none;position:fixed;bottom:0;left:0;right:0;z-index:210;
+  background:var(--surface);color:var(--muted);
+  padding:0;cursor:pointer;
+  border-top:1px solid rgba(255,255,255,0.08);
+  transition:background 0.25s, box-shadow 0.25s;
+  flex-direction:column;
+}
+.mobile-cart-bar.has-items{
+  background:var(--yellow);color:var(--black);
+  box-shadow:0 -4px 24px rgba(232,168,32,0.35);
+  animation:cart-pulse 2.8s ease-in-out infinite;
+}
+@keyframes cart-pulse{
+  0%,100%{box-shadow:0 -4px 24px rgba(232,168,32,0.3);}
+  50%{box-shadow:0 -4px 32px rgba(232,168,32,0.55);}
+}
+.mobile-cart-inner{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 20px;gap:12px;
+}
+.mobile-cart-left{display:flex;align-items:center;gap:10px;}
+.mobile-cart-icon{font-size:1.3rem;line-height:1;}
+.mobile-cart-badge{
+  background:var(--black);color:var(--yellow);
+  font-family:"Bebas Neue",sans-serif;font-size:0.75rem;
+  width:20px;height:20px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;
+}
+.mobile-cart-bar.has-items .mobile-cart-badge{background:rgba(0,0,0,0.25);color:#fff;}
+.mobile-cart-label{font-family:"Bebas Neue",sans-serif;font-size:0.95rem;letter-spacing:2px;}
+.mobile-cart-empty-label{font-size:0.72rem;letter-spacing:1px;opacity:0.5;}
+.mobile-cart-right{display:flex;align-items:center;gap:8px;}
+.mobile-cart-total{font-family:"Bebas Neue",sans-serif;font-size:1.15rem;letter-spacing:1px;}
+.mobile-cart-arrow{font-size:1rem;opacity:0.6;}
+.mobile-cart-bar.has-items .mobile-cart-arrow{opacity:1;}
+@media(max-width:860px){.mobile-cart-bar{display:flex;}body{padding-bottom:68px;}}
+
+/* ── MODALES ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:300;display:flex;align-items:center;justify-content:center;padding:20px;opacity:0;pointer-events:none;transition:opacity 0.25s;}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal-box{background:var(--dark);border:1px solid rgba(232,168,32,0.2);max-width:560px;width:100%;max-height:90vh;overflow-y:auto;padding:28px 24px;transform:translateY(10px);transition:transform 0.25s;}
+.modal-overlay.open .modal-box{transform:translateY(0);}
+.modal-title{font-family:"Bebas Neue",sans-serif;font-size:1.3rem;letter-spacing:3px;color:var(--cream);margin-bottom:6px;}
+.modal-sub{font-size:0.78rem;color:var(--muted);margin-bottom:20px;line-height:1.5;}
+.modal-actions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap;}
+.btn-primary{flex:1;background:var(--yellow);color:var(--black);border:none;cursor:pointer;font-family:"Bebas Neue",sans-serif;font-size:0.9rem;letter-spacing:2px;padding:13px 20px;transition:all 0.2s;border-radius:2px;min-width:120px;}
+.btn-primary:hover{background:#d4971a;}
+.btn-secondary{flex:1;background:rgba(255,255,255,0.05);color:var(--muted);border:1px solid rgba(255,255,255,0.1);cursor:pointer;font-family:"Bebas Neue",sans-serif;font-size:0.9rem;letter-spacing:2px;padding:13px 20px;transition:all 0.2s;border-radius:2px;min-width:120px;}
+.btn-secondary:hover{color:var(--cream);border-color:rgba(255,255,255,0.25);}
+.ups-sec-label{font-size:0.6rem;letter-spacing:3px;font-family:"Bebas Neue",sans-serif;color:var(--muted);margin-bottom:8px;margin-top:16px;}
+.upsell-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;}
+.upsell-card{border:1px solid rgba(255,255,255,0.08);padding:12px 10px;cursor:pointer;transition:all 0.15s;border-radius:2px;text-align:center;}
+.upsell-card:hover{border-color:rgba(232,168,32,0.3);}
+.upsell-card.selected{border-color:var(--yellow);background:rgba(232,168,32,0.08);}
+.upsell-card-name{font-size:0.78rem;font-weight:600;color:var(--cream);margin-bottom:3px;line-height:1.3;}
+.upsell-card-price{font-family:"Bebas Neue",sans-serif;font-size:0.95rem;color:var(--yellow);}
+
+/* ── DELIVERY FORM ── */
+.form-group{margin-bottom:14px;}
+.form-group label{display:block;font-size:0.62rem;letter-spacing:2px;color:var(--muted);margin-bottom:6px;}
+.form-group input,.form-group textarea{width:100%;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);color:var(--cream);font-size:0.82rem;font-family:"DM Sans",sans-serif;padding:10px 12px;outline:none;border-radius:2px;}
+.form-group input:focus,.form-group textarea:focus{border-color:rgba(232,168,32,0.4);}
+.form-grid-2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.municipio-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;}
+.muni-chip{border:1px solid rgba(255,255,255,0.1);padding:7px 14px;font-size:0.72rem;cursor:pointer;transition:all 0.15s;border-radius:2px;color:var(--muted);}
+.muni-chip:hover{border-color:rgba(232,168,32,0.3);color:var(--cream);}
+.muni-chip.selected{border-color:var(--yellow);background:rgba(232,168,32,0.1);color:var(--yellow);}
+
+/* ── MAPA INTEGRADO ── */
+.geo-search-wrap{position:relative;display:flex;gap:8px;align-items:center;}
+.geo-search-wrap input{flex:1;}
+.btn-geo{background:rgba(232,168,32,0.1);border:1px solid rgba(232,168,32,0.3);color:var(--yellow);font-size:0.65rem;letter-spacing:1px;padding:10px 10px;cursor:pointer;border-radius:2px;white-space:nowrap;transition:all 0.15s;font-family:"Bebas Neue",sans-serif;flex-shrink:0;}
+.btn-geo:hover{background:rgba(232,168,32,0.2);}
+.btn-geo:disabled{opacity:0.4;cursor:not-allowed;}
+/* Sugerencias de búsqueda */
+.geo-suggestions{position:absolute;top:100%;left:0;right:44px;background:var(--surface);border:1px solid rgba(232,168,32,0.25);border-top:none;z-index:50;display:none;max-height:160px;overflow-y:auto;}
+.geo-suggestions.show{display:block;}
+.geo-sug-item{padding:8px 12px;font-size:0.78rem;color:var(--cream);cursor:pointer;border-bottom:1px solid rgba(255,255,255,0.04);line-height:1.4;}
+.geo-sug-item:hover{background:rgba(232,168,32,0.08);color:var(--yellow);}
+.geo-sug-item:last-child{border-bottom:none;}
+.geo-status{font-size:0.7rem;margin-top:5px;min-height:16px;letter-spacing:0.5px;color:var(--muted);}
+.geo-status.ok{color:var(--green);}
+.geo-status.err{color:var(--red);}
+.geo-coords{font-size:0.65rem;color:rgba(232,168,32,0.5);margin-top:2px;}
+/* Mapa leaflet */
+#map-container{width:100%;height:220px;border:1px solid rgba(255,255,255,0.1);border-radius:2px;margin-top:8px;position:relative;background:#1a1a18;}
+/* Leaflet necesita altura explícita y NO display:none — se usa visibility */
+#leaflet-map{width:100%;height:220px;border-radius:2px;}
+.map-placeholder-txt{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:0.74rem;color:var(--muted);letter-spacing:1px;pointer-events:none;z-index:1;}
+.map-placeholder-txt.hidden{display:none;}
+/* Instrucción de arrastre */
+.map-drag-hint{display:none;position:absolute;top:8px;left:50%;transform:translateX(-50%);background:rgba(17,17,16,0.88);border:1px solid rgba(232,168,32,0.3);color:var(--yellow);font-size:0.64rem;letter-spacing:1px;padding:4px 12px;border-radius:10px;white-space:nowrap;z-index:500;pointer-events:none;}
+.map-confirm-row{display:none;align-items:center;gap:8px;margin-top:8px;padding:10px 12px;background:rgba(95,221,138,0.07);border:1px solid rgba(95,221,138,0.2);border-radius:2px;}
+.map-confirm-row.show{display:flex;}
+.map-confirm-row input[type=checkbox]{width:16px;height:16px;accent-color:var(--green);}
+.map-confirm-row label{font-size:0.75rem;color:var(--muted);cursor:pointer;flex:1;}
+.error-msg{font-size:0.72rem;color:var(--red);margin-top:4px;display:none;}
+.error-msg.show{display:block;}
+
+/* ── MISC ── */
+.loading{display:flex;align-items:center;justify-content:center;padding:60px 20px;flex-direction:column;gap:12px;color:var(--muted);font-size:0.76rem;letter-spacing:2px;}
+.spinner{width:26px;height:26px;border:2px solid rgba(232,168,32,0.15);border-top-color:var(--yellow);border-radius:50%;animation:spin 0.7s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.toast{position:fixed;bottom:70px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--surface);border:1px solid rgba(232,168,32,0.3);color:var(--cream);padding:8px 16px;font-size:0.75rem;letter-spacing:1px;border-radius:4px;opacity:0;transition:all 0.25s;pointer-events:none;z-index:999;white-space:nowrap;}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+::-webkit-scrollbar{width:3px} ::-webkit-scrollbar-track{background:var(--dark)} ::-webkit-scrollbar-thumb{background:rgba(232,168,32,0.3);border-radius:2px}
+.leaflet-container{background:#1a1a18;}
+.leaflet-tile-pane{filter:brightness(0.82) saturate(0.7);}
+/* ocultar atribución */
+.leaflet-control-attribution{font-size:8px!important;opacity:0.4;}
+</style>
+</head>
+<body>
+
+<!-- FIREBASE -->
+<script type="module">
+  import { initializeApp, getApps } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+  import { getDatabase, ref, get } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+  const cfg = {
+    apiKey:"AIzaSyCtskV-XYL08PPMc8yQAFRucICPfgs6PCs",
+    authDomain:"pizpa-web.firebaseapp.com",
+    databaseURL:"https://pizpa-web-default-rtdb.firebaseio.com",
+    projectId:"pizpa-web",
+    storageBucket:"pizpa-web.appspot.com",
+    messagingSenderId:"390455014543",
+    appId:"1:390455014543:web:da789fd7fb4daecd4a60a8"
+  };
+  const app = getApps().length ? getApps()[0] : initializeApp(cfg);
+  const db  = getDatabase(app);
+  window._fb = { db, ref, get };
+  window.dispatchEvent(new Event('firebaseReady'));
+</script>
+
+<!-- HEADER -->
+<header class="site-header">
+  <a href="index.html" class="nav-logo"><img src="img/imagen_1.png" alt="Pizpa Comedy Club"></a>
+  <a href="index.html" class="header-back">← VOLVER</a>
+</header>
+
+<div class="order-hero">
+  <h1>ARMA TU <span>PEDIDO</span></h1>
+  <p>Elige tus productos · Delivery solo en Caracas · Confirmamos por WhatsApp</p>
+</div>
+
+<div class="page-layout">
+  <div class="menu-panel">
+    <div class="tab-group-header" id="tab-groups"></div>
+    <div class="cat-tabs" id="cat-tabs"></div>
+    <div id="menu-content"><div class="loading"><div class="spinner"></div>Cargando menú...</div></div>
+  </div>
+  <div class="cart-panel" id="cart-panel">
+    <div class="cart-header">
+      <span class="cart-title">Tu Pedido</span>
+      <span class="cart-count" id="cart-count">0</span>
+      <button class="cart-toggle-btn" id="cart-toggle-btn" onclick="toggleCart()">▲</button>
+    </div>
+    <div class="cart-body" id="cart-body">
+      <div class="cart-empty"><div class="cart-empty-icon">🍕</div><div>Agrega productos<br>al pedido</div></div>
+    </div>
+    <div class="cart-footer" id="cart-footer" style="display:none;">
+      <div class="cart-subtotal"><span>TOTAL ESTIMADO</span><span id="cart-total">$0</span></div>
+      <div class="order-note-wrap">
+        <label>NOTA GENERAL (OPCIONAL)</label>
+        <textarea class="order-note" id="order-note" placeholder="Ej: sin cebolla en todo, alergias..."></textarea>
+      </div>
+      <button class="btn-send" onclick="startCheckout()">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
+        CONTINUAR PEDIDO
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="cart-overlay" id="cart-overlay" onclick="toggleCart()"></div>
+<div class="mobile-cart-bar" id="mobile-cart-bar" onclick="toggleCart()">
+  <div class="mobile-cart-inner">
+    <div class="mobile-cart-left">
+      <span class="mobile-cart-icon">🛒</span>
+      <span class="mobile-cart-badge" id="mobile-badge">0</span>
+      <span class="mobile-cart-label" id="mobile-cart-label">TU PEDIDO</span>
+    </div>
+    <div class="mobile-cart-right">
+      <span class="mobile-cart-total" id="mobile-total-price"></span>
+      <span class="mobile-cart-arrow" id="mobile-cart-arrow">▲</span>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL UPSELL -->
+<div class="modal-overlay" id="modal-upsell">
+  <div class="modal-box">
+    <div class="modal-title">¿Algo más?</div>
+    <div class="modal-sub">Antes de confirmar, ¿quieres agregar un postre o una bebida? 🍮🥤</div>
+    <div class="ups-sec-label">POSTRES</div>
+    <div class="upsell-grid" id="upsell-postres"></div>
+    <div class="ups-sec-label">BEBIDAS SIN ALCOHOL</div>
+    <div class="upsell-grid" id="upsell-bebidas"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="skipUpsell()">NO, GRACIAS</button>
+      <button class="btn-primary" onclick="addUpsellAndContinue()">AGREGAR Y CONTINUAR</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DELIVERY -->
+<div class="modal-overlay" id="modal-delivery">
+  <div class="modal-box">
+    <div class="modal-title">¿A DÓNDE ENVIAMOS?</div>
+    <div class="modal-sub">Delivery disponible en Caracas: Sucre, Chacao, Baruta y Libertador.</div>
+
+    <div class="form-group">
+      <label>MUNICIPIO</label>
+      <div class="municipio-chips">
+        <div class="muni-chip" data-muni="Sucre" onclick="selectMunicipio(this)">Sucre</div>
+        <div class="muni-chip" data-muni="Chacao" onclick="selectMunicipio(this)">Chacao</div>
+        <div class="muni-chip" data-muni="Baruta" onclick="selectMunicipio(this)">Baruta</div>
+        <div class="muni-chip" data-muni="Libertador" onclick="selectMunicipio(this)">Libertador</div>
+      </div>
+      <div class="error-msg" id="err-municipio">Selecciona un municipio</div>
+    </div>
+
+    <div class="form-group">
+      <label>DIRECCIÓN — escribe para buscar o usa GPS</label>
+      <div class="geo-search-wrap">
+        <input type="text" id="del-address" placeholder="Ej: Av. Francisco de Miranda, Chacao" autocomplete="off" oninput="onAddressInput()" onfocus="showSuggestions()" onblur="hideSuggestions()">
+        <button class="btn-geo" id="btn-geo" onclick="useMyLocation()">📍 GPS</button>
+        <div class="geo-suggestions" id="geo-suggestions"></div>
+      </div>
+      <div class="geo-status" id="geo-status">Escribe una dirección o usa tu GPS para ubicarte en el mapa</div>
+      <div class="geo-coords" id="geo-coords"></div>
+      <div id="map-container">
+        <div class="map-placeholder-txt" id="map-placeholder-txt">
+          <span style="font-size:1.8rem;opacity:0.2">📍</span>
+          <span>Escribe tu dirección o usa el GPS</span>
+        </div>
+        <div id="leaflet-map"></div>
+        <div class="map-drag-hint" id="map-drag-hint">Arrastra el marcador para ajustar</div>
+      </div>
+      <div class="map-confirm-row" id="map-confirm-row">
+        <input type="checkbox" id="confirm-loc" onchange="onConfirmLocation()">
+        <label for="confirm-loc">Confirmo que el marcador indica mi ubicación exacta</label>
+      </div>
+      <div class="error-msg" id="err-address">Ingresa una dirección</div>
+    </div>
+
+    <div class="form-group">
+      <label>EDIFICIO / CASA / APTO / REFERENCIA</label>
+      <input type="text" id="del-lugar" placeholder="Ej: Edif. Las Palmas, Apto 4B, piso 3">
+    </div>
+
+    <div class="form-grid-2">
+      <div class="form-group">
+        <label>NOMBRE COMPLETO</label>
+        <input type="text" id="del-nombre" placeholder="Tu nombre">
+      </div>
+      <div class="form-group">
+        <label>CÉDULA</label>
+        <input type="text" id="del-cedula" placeholder="V-12345678">
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>TELÉFONO</label>
+      <input type="tel" id="del-telefono" placeholder="04XX-XXXXXXX">
+    </div>
+
+    <div class="error-msg" id="err-general"></div>
+
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('modal-delivery')">VOLVER</button>
+      <button class="btn-primary" onclick="confirmDelivery()">ENVIAR POR WHATSAPP 🚀</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+var WA_NUMBER = '584127301139';
+var FOOD_CATS = ['Entradas','Ensaladas','Pizzas','Burgers','Postres'];
+var CAT_ORDER = ['Entradas','Ensaladas','Pizzas','Burgers','Postres'];
+
+// ── Extras fijos de pizza (en orden, individuales) ──
+var PIZZA_EXTRAS_FIXED = [
+  'Maíz','Jamón','Tocineta','Champiñones','Pimentón',
+  'Aceitunas','Pepperoni','Cebolla','Parmesano','Mozzarella','Chistorra'
+];
+
+// ── Sabores alitas ──
+var ALITAS_SABORES = ['Sal y Pimienta','BBQ','Miel Mostaza'];
+
+// ── Bebidas fijas ──
+var BEBIDAS_FIJAS = [
+  { id:'beb-refr-lata',  name:'Refresco',       subname:'Lata 350ml',  price:1.5,  cat:'Bebidas' },
+  { id:'beb-refr-1lt',   name:'Refresco',       subname:'1 litro',     price:2.5,  cat:'Bebidas' },
+  { id:'beb-refr-2lt',   name:'Refresco',       subname:'2 litros',    price:3.5,  cat:'Bebidas' },
+  { id:'beb-agua-600',   name:'Agua',           subname:'600 ml',      price:1.0,  cat:'Bebidas' },
+  { id:'beb-spark-600',  name:'Agua Sparkling', subname:'600 ml',      price:1.5,  cat:'Bebidas' }
+];
+
+var menuData    = {};
+var extrasData  = {};
+var alitasData  = {};  // { itemId: { p10, p20, p40 } }
+var bebidasData = {};  // { presentacionId: { price } }
+var cart       = {};
+var allGrouped = {};
+var allCats    = [];
+var activeCat  = 'all';
+var activeGroup = 'food';
+var cartOpen    = false;
+var pricePrefix = '$';
+
+// Alitas: estado de selección PENDIENTE (antes de confirmar)
+var alitasPending = {}; // { itemId: { sabor: null, qty: null } }
+
+// Geo / mapa
+var mapReady      = false;
+var leafletMap    = null;
+var leafletMarker = null;
+var geoLat = null;
+var geoLng = null;
+var locationConfirmed = false;
+var selectedMunicipio = '';
+var upsellSelected = {};
+var geoSearchTimer = null;
+var suggestionsVisible = false;
+
+// ────────────────────────────────────────
+function init() {
+  if (window._fb) loadAll();
+  else window.addEventListener('firebaseReady', loadAll, { once: true });
+}
+
+function loadAll() {
+  var db = window._fb.db, ref = window._fb.ref, get = window._fb.get;
+  Promise.all([
+    get(ref(db, 'menu')),
+    get(ref(db, 'config')),
+    get(ref(db, 'pizza_extras')),
+    get(ref(db, 'alitas_config')),
+    get(ref(db, 'bebidas_config'))
+  ]).then(function(snaps) {
+    menuData    = snaps[0].val() || {};
+    var cfg     = snaps[1].val() || {};
+    extrasData  = snaps[2].val() || {};
+    alitasData  = snaps[3].val() || {};
+    bebidasData = snaps[4].val() || {};
+    if (cfg.pricePrefix) pricePrefix = cfg.pricePrefix;
+    // Sincronizar BEBIDAS_FIJAS con precios de Firebase si existen
+    BEBIDAS_FIJAS.forEach(function(b) {
+      if (bebidasData[b.id] && bebidasData[b.id].price !== undefined) {
+        b.price = bebidasData[b.id].price;
+      }
+    });
+    renderGroups();
+    buildUpsellModals();
+  }).catch(function() {
+    document.getElementById('menu-content').innerHTML =
+      '<div class="loading" style="color:var(--red)">Error cargando el menú.</div>';
+  });
+}
+
+// ══ GRUPOS ══
+function renderGroups() {
+  var grps = document.getElementById('tab-groups');
+  grps.innerHTML = '';
+  var bf = document.createElement('button');
+  bf.id = 'grp-food'; bf.className = 'tab-group-btn active'; bf.textContent = '🍕 COMIDA';
+  bf.onclick = function(){ setGroup('food'); };
+  var bd = document.createElement('button');
+  bd.id = 'grp-drinks'; bd.className = 'tab-group-btn'; bd.textContent = '🥤 BEBIDAS';
+  bd.onclick = function(){ setGroup('drinks'); };
+  grps.appendChild(bf); grps.appendChild(bd);
+  setGroup('food');
+}
+
+function setGroup(grp) {
+  activeGroup = grp;
+  document.getElementById('grp-food').classList.toggle('active', grp === 'food');
+  document.getElementById('grp-drinks').classList.toggle('active', grp === 'drinks');
+  if (grp === 'food') renderFoodMenu();
+  else renderDrinksMenu();
+}
+
+// ══ MENÚ COMIDA ══
+function renderFoodMenu() {
+  allGrouped = {};
+  Object.values(menuData).forEach(function(item) {
+    if (FOOD_CATS.indexOf(item.cat) === -1) return;
+    if (!allGrouped[item.cat]) allGrouped[item.cat] = [];
+    allGrouped[item.cat].push(item);
+  });
+  allCats = CAT_ORDER.filter(function(c){ return allGrouped[c]; });
+  var tabsEl = document.getElementById('cat-tabs');
+  tabsEl.innerHTML = '';
+  var allBtn = document.createElement('button');
+  allBtn.className = 'cat-tab active'; allBtn.textContent = 'TODO'; allBtn.dataset.cat = 'all';
+  allBtn.onclick = function(){ showCat('all'); };
+  tabsEl.appendChild(allBtn);
+  allCats.forEach(function(cat) {
+    var btn = document.createElement('button');
+    btn.className = 'cat-tab'; btn.textContent = cat.toUpperCase(); btn.dataset.cat = cat;
+    btn.onclick = function(){ showCat(cat); };
+    tabsEl.appendChild(btn);
+  });
+  showCat('all');
+}
+
+function showCat(cat) {
+  activeCat = cat;
+  document.querySelectorAll('.cat-tab').forEach(function(b){ b.classList.toggle('active', b.dataset.cat === cat); });
+  var content = document.getElementById('menu-content');
+  content.innerHTML = '';
+  var catsToShow = cat === 'all' ? allCats : [cat];
+  catsToShow.forEach(function(c) {
+    var items = allGrouped[c] || [];
+    if (!items.length) return;
+    var section = document.createElement('div'); section.style.marginBottom = '28px';
+    var lbl = document.createElement('div'); lbl.className = 'section-label'; lbl.textContent = c.toUpperCase();
+    section.appendChild(lbl);
+    var grid = document.createElement('div'); grid.className = 'items-grid';
+    items.forEach(function(item){ grid.appendChild(buildCard(item)); });
+    section.appendChild(grid);
+    content.appendChild(section);
+  });
+}
+
+// ══ MENÚ BEBIDAS ══
+function renderDrinksMenu() {
+  document.getElementById('cat-tabs').innerHTML = '';
+  var content = document.getElementById('menu-content');
+  content.innerHTML = '';
+  var section = document.createElement('div');
+  var lbl = document.createElement('div'); lbl.className = 'section-label'; lbl.textContent = 'BEBIDAS SIN ALCOHOL';
+  section.appendChild(lbl);
+  var grid = document.createElement('div'); grid.className = 'items-grid';
+  var fbDrinks = Object.values(menuData).filter(function(i){ return i.cat === 'Sin Alcohol'; });
+  var drinkItems = fbDrinks.length ? expandDrinkPresentations(fbDrinks) : BEBIDAS_FIJAS;
+  drinkItems.forEach(function(item){ grid.appendChild(buildCard(item)); });
+  section.appendChild(grid);
+  content.appendChild(section);
+}
+
+function expandDrinkPresentations(fbItems) {
+  var result = [];
+  var presMap = {
+    'refresco': [
+      { suf:'lata',  sub:'Lata 350ml',  mult:1.0 },
+      { suf:'1lt',   sub:'1 litro',     mult:1.6 },
+      { suf:'2lt',   sub:'2 litros',    mult:2.4 }
+    ],
+    'agua sparkling': [{ suf:'600ml', sub:'600 ml', mult:1.0 }],
+    'agua':           [{ suf:'600ml', sub:'600 ml', mult:1.0 }]
+  };
+  fbItems.forEach(function(item) {
+    var key = item.name.toLowerCase();
+    var matched = false;
+    Object.keys(presMap).forEach(function(k) {
+      if (!matched && key.indexOf(k) !== -1) {
+        matched = true;
+        presMap[k].forEach(function(p) {
+          result.push(Object.assign({}, item, {
+            id: item.id + '-' + p.suf,
+            subname: p.sub,
+            price: Math.round(item.price * p.mult * 100) / 100
+          }));
+        });
+      }
+    });
+    if (!matched) result.push(item);
+  });
+  return result;
+}
+
+// ══ DETECCIÓN ══
+function isAlitas(item) { return item.name.toLowerCase().indexOf('alita') !== -1; }
+function isPizza(item)  { return item.cat === 'Pizzas'; }
+
+function getAlitasVariants(item) {
+  var b = item.price || 8;
+  var cfg = alitasData[item.id];
+  // Si hay config guardada en Firebase con los 3 precios, usarlos
+  if (cfg && cfg.p10) {
+    return [
+      { label:'10 unid.', qty:10, price: cfg.p10 },
+      { label:'20 unid.', qty:20, price: cfg.p20 || Math.round(b*1.75*10)/10 },
+      { label:'40 unid.', qty:40, price: cfg.p40 || Math.round(b*3.0*10)/10  }
+    ];
+  }
+  return [
+    { label:'10 unid.', qty:10, price: b },
+    { label:'20 unid.', qty:20, price: Math.round(b * 1.75 * 10) / 10 },
+    { label:'40 unid.', qty:40, price: Math.round(b * 3.0  * 10) / 10 }
+  ];
+}
+
+// ══ BUILD CARD ══
+function buildCard(item) {
+  var key    = item.id;
+  var inCart = !!cart[key];
+  var card   = document.createElement('div');
+  card.className = 'item-card' + (inCart ? ' in-cart' : '');
+  card.id = 'card-' + item.id;
+
+  // Prefijo de categoría: Pizza / Burger / Ensalada / Postre / Alitas
+  var CAT_PREFIX = { 'Pizzas':'Pizza', 'Burgers':'Burger', 'Ensaladas':'Ensalada', 'Postres':'Postre' };
+  var displayName = item.name;
+  var _prefix = item.cat ? CAT_PREFIX[item.cat] : null;
+  if (isAlitas(item) && item.name.toLowerCase().indexOf('alita') === -1) _prefix = 'Alitas';
+  if (_prefix && item.name.toLowerCase().indexOf(_prefix.toLowerCase()) === -1) {
+    displayName = _prefix + ' ' + item.name;
+  }
+
+  var nm = document.createElement('div'); nm.className = 'item-name'; nm.textContent = displayName;
+  card.appendChild(nm);
+  if (item.subname) {
+    var sn = document.createElement('div'); sn.className = 'item-desc'; sn.textContent = item.subname;
+    card.appendChild(sn);
+  } else if (item.desc) {
+    var ds = document.createElement('div'); ds.className = 'item-desc'; ds.textContent = item.desc;
+    card.appendChild(ds);
+  }
+
+  // ── ALITAS: card compacta, al agregar aparece selector inline ──
+  if (isAlitas(item)) {
+    if (inCart) {
+      // En carrito: mostrar info + qty ctrl
+      var ft = document.createElement('div'); ft.className = 'item-footer';
+      var pe = document.createElement('div'); pe.className = 'item-price';
+      pe.innerHTML = '<sup>' + pricePrefix + '</sup>' + cart[key].unitPrice;
+      ft.appendChild(pe);
+      ft.appendChild(makeQtyCtrl(item.id, key));
+      card.appendChild(ft);
+      // Mostrar sabor y cantidad seleccionada
+      var sel = cart[key];
+      if (sel.variant || sel.sabor) {
+        var info = document.createElement('div');
+        info.style.cssText = 'font-size:0.7rem;color:var(--muted);margin-top:2px;';
+        var parts = [];
+        if (sel.variant) parts.push(sel.variant.label);
+        if (sel.sabor) parts.push(sel.sabor);
+        info.textContent = parts.join(' · ');
+        card.appendChild(info);
+      }
+    } else {
+      // No en carrito: botón simple + panel que aparece al clickear
+      var variants = getAlitasVariants(item);
+      var ft2 = document.createElement('div'); ft2.className = 'item-footer';
+      var pe2 = document.createElement('div'); pe2.className = 'item-price';
+      pe2.innerHTML = '<sup>' + pricePrefix + '</sup>' + item.price;
+      ft2.appendChild(pe2);
+
+      // Botón agregar que abre el panel
+      var openBtn = document.createElement('button');
+      openBtn.className = 'qty-btn add-btn'; openBtn.textContent = '+ ELEGIR';
+      var panelId = 'alitas-panel-' + item.id;
+      (function(it, pid) {
+        openBtn.onclick = function(e) {
+          e.stopPropagation();
+          var existingPanel = document.getElementById(pid);
+          if (existingPanel) {
+            existingPanel.remove();
+            return;
+          }
+          var panel = buildAlitasPanel(it, variants, pid, displayName);
+          card.appendChild(panel);
+        };
+      }(item, panelId));
+      ft2.appendChild(openBtn);
+      card.appendChild(ft2);
+    }
+
+  // ── PIZZA ──
+  } else if (isPizza(item)) {
+    var ft3 = document.createElement('div'); ft3.className = 'item-footer';
+    var pe3 = document.createElement('div'); pe3.className = 'item-price';
+    pe3.innerHTML = '<sup>' + pricePrefix + '</sup>' + (inCart ? cart[key].unitPrice : item.price);
+    ft3.appendChild(pe3);
+    if (inCart) {
+      ft3.appendChild(makeQtyCtrl(item.id, key));
+    } else {
+      var ab3 = document.createElement('button'); ab3.className = 'qty-btn add-btn'; ab3.textContent = '+ AGREGAR';
+      (function(it, dn) {
+        ab3.onclick = function(e) {
+          e.stopPropagation();
+          var cartItem = Object.assign({}, it, { name: dn });
+          cart[it.id] = { item: cartItem, qty: 1, unitPrice: it.price, extras: [], sabor: null, note: '' };
+          refreshCard(it.id); renderCart();
+          showToast('✓ ' + dn);
+        };
+      }(item, displayName));
+      ft3.appendChild(ab3);
+    }
+    card.appendChild(ft3);
+
+    // Extras fijos de pizza
+    buildExtrasSection(card, item, inCart, key);
+
+  // ── ITEM NORMAL ──
+  } else {
+    var ft4 = document.createElement('div'); ft4.className = 'item-footer';
+    var pe4 = document.createElement('div'); pe4.className = 'item-price';
+    pe4.innerHTML = '<sup>' + pricePrefix + '</sup>' + item.price;
+    ft4.appendChild(pe4);
+    if (inCart) {
+      ft4.appendChild(makeQtyCtrl(item.id, key));
+    } else {
+      var ab4 = document.createElement('button'); ab4.className = 'qty-btn add-btn'; ab4.textContent = '+ AGREGAR';
+      (function(it, dn) {
+        ab4.onclick = function(e) {
+          e.stopPropagation();
+          var ci = Object.assign({}, it, { name: dn });
+          cart[it.id] = { item: ci, qty: 1, unitPrice: it.price, extras: [], sabor: null, note: '' };
+          refreshCard(it.id); renderCart();
+          showToast('✓ ' + dn);
+        };
+      }(item, displayName));
+      ft4.appendChild(ab4);
+    }
+    card.appendChild(ft4);
+  }
+
+  // Nota especial (para items en carrito, no alitas)
+  if (inCart && !isAlitas(item)) {
+    var noteBtn = document.createElement('button'); noteBtn.className = 'note-toggle';
+    var hasNote = cart[key] && cart[key].note;
+    noteBtn.textContent = hasNote ? '− Nota especial' : '+ Nota especial';
+    var noteWrap = document.createElement('div'); noteWrap.className = 'item-note-wrap' + (hasNote ? ' open' : '');
+    var noteTxt = document.createElement('textarea'); noteTxt.className = 'item-note'; noteTxt.rows = 2;
+    noteTxt.placeholder = 'Ej: sin cebolla, término medio...';
+    noteTxt.value = (cart[key] && cart[key].note) || '';
+    noteBtn.onclick = function(e) { e.stopPropagation(); noteWrap.classList.toggle('open'); noteBtn.textContent = noteWrap.classList.contains('open') ? '− Nota especial' : '+ Nota especial'; };
+    (function(k) { noteTxt.oninput = function() { if (cart[k]) { cart[k].note = noteTxt.value; renderCart(); } }; }(key));
+    noteWrap.appendChild(noteTxt);
+    card.appendChild(noteBtn); card.appendChild(noteWrap);
+  }
+  return card;
+}
+
+// ── Panel alitas inline ──
+function buildAlitasPanel(item, variants, panelId, displayName) {
+  displayName = displayName || item.name;
+  var panel = document.createElement('div');
+  panel.className = 'alitas-panel'; panel.id = panelId;
+  // Estado local del panel
+  var selSabor = null;
+  var selVariant = null;
+
+  // Sabores
+  var sLabel = document.createElement('div'); sLabel.className = 'alitas-panel-label'; sLabel.textContent = 'SABOR';
+  panel.appendChild(sLabel);
+  var sabChips = document.createElement('div'); sabChips.className = 'sabor-chips';
+  ALITAS_SABORES.forEach(function(sabor) {
+    var chip = document.createElement('div');
+    chip.className = 'sabor-chip'; chip.textContent = sabor;
+    chip.onclick = function(e) {
+      e.stopPropagation();
+      sabChips.querySelectorAll('.sabor-chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      selSabor = sabor;
+      updateConfirmBtn();
+    };
+    sabChips.appendChild(chip);
+  });
+  panel.appendChild(sabChips);
+
+  // Cantidades
+  var cLabel = document.createElement('div'); cLabel.className = 'alitas-panel-label'; cLabel.style.marginTop = '4px'; cLabel.textContent = 'CANTIDAD';
+  panel.appendChild(cLabel);
+  var cantChips = document.createElement('div'); cantChips.className = 'cant-chips';
+  variants.forEach(function(v) {
+    var chip = document.createElement('div');
+    chip.className = 'cant-chip';
+    var qEl = document.createElement('span'); qEl.className = 'cant-chip-qty'; qEl.textContent = v.label;
+    var pEl = document.createElement('span'); pEl.className = 'cant-chip-price'; pEl.textContent = pricePrefix + v.price;
+    chip.appendChild(qEl); chip.appendChild(pEl);
+    chip.onclick = function(e) {
+      e.stopPropagation();
+      cantChips.querySelectorAll('.cant-chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      selVariant = v;
+      updateConfirmBtn();
+    };
+    cantChips.appendChild(chip);
+  });
+  panel.appendChild(cantChips);
+
+  // Botón confirmar
+  var confirmBtn = document.createElement('button');
+  confirmBtn.className = 'alitas-confirm-btn'; confirmBtn.textContent = 'AGREGAR AL PEDIDO';
+  confirmBtn.disabled = true;
+
+  function updateConfirmBtn() {
+    confirmBtn.disabled = !(selSabor && selVariant);
+    if (!confirmBtn.disabled) {
+      confirmBtn.textContent = 'AGREGAR — ' + pricePrefix + selVariant.price;
+    } else {
+      confirmBtn.textContent = 'AGREGAR AL PEDIDO';
+    }
+  }
+
+  confirmBtn.onclick = function(e) {
+    e.stopPropagation();
+    if (!selSabor || !selVariant) return;
+    var cartItem = Object.assign({}, item, { name: displayName });
+    cart[item.id] = {
+      item: cartItem, qty: 1,
+      variant: selVariant, sabor: selSabor,
+      unitPrice: selVariant.price,
+      extras: [], note: ''
+    };
+    refreshCard(item.id);
+    renderCart();
+    showToast('✓ ' + item.name + ' · ' + selVariant.label + ' · ' + selSabor);
+  };
+
+  panel.appendChild(confirmBtn);
+  return panel;
+}
+
+// ── Extras de pizza ──
+function buildExtrasSection(card, item, inCart, key) {
+  // Combinar extras fijos + los de Firebase (si los hay con precio)
+  var fbExtras = Object.values(extrasData);
+  var extras = PIZZA_EXTRAS_FIXED.map(function(name) {
+    // Si existe en Firebase con precio, usar ese precio
+    var fb = fbExtras.find(function(e){ return e.name.toLowerCase() === name.toLowerCase(); });
+    return { id: 'ex-' + name.toLowerCase().replace(/\s+/g,'_'), name: name, price: fb ? (fb.price || 0) : 0 };
+  });
+
+  var extSec = document.createElement('div'); extSec.className = 'extras-section';
+  var extHdr = document.createElement('div'); extHdr.className = 'extras-header';
+  var extTit = document.createElement('div'); extTit.className = 'extras-title'; extTit.textContent = '✚ EXTRAS OPCIONALES';
+  var togBtn = document.createElement('button'); togBtn.className = 'extras-toggle-btn';
+  togBtn.textContent = inCart ? '▲ OCULTAR' : '▼ VER';
+  extHdr.appendChild(extTit); extHdr.appendChild(togBtn);
+  extSec.appendChild(extHdr);
+
+  var extList = document.createElement('div'); extList.className = 'extras-list';
+  extList.style.maxHeight = (extras.length * 34 + 4) + 'px';
+  if (!inCart) extList.classList.add('hidden');
+
+  extras.forEach(function(extra) {
+    var selExtras = inCart ? (cart[key].extras || []) : [];
+    var isSel = selExtras.indexOf(extra.id) !== -1;
+    var row = document.createElement('div');
+    row.className = 'extra-row' + (isSel ? ' selected' : '');
+    var chk = document.createElement('div'); chk.className = 'extra-check'; if (isSel) chk.textContent = '✓';
+    var enm = document.createElement('div'); enm.className = 'extra-name'; enm.textContent = extra.name;
+    var epr = document.createElement('div'); epr.className = 'extra-price-lbl';
+    epr.textContent = extra.price > 0 ? ('+' + pricePrefix + extra.price) : 'gratis';
+    if (!extra.price) epr.style.cssText = 'font-style:italic;font-size:0.65rem;';
+    row.appendChild(chk); row.appendChild(enm); row.appendChild(epr);
+    if (inCart) {
+      (function(iid, ex) {
+        row.onclick = function() { toggleExtra(iid, ex); };
+      }(item.id, extra));
+    }
+    extList.appendChild(row);
+  });
+
+  togBtn.onclick = function(e) {
+    e.stopPropagation();
+    extList.classList.toggle('hidden');
+    togBtn.textContent = extList.classList.contains('hidden') ? '▼ VER' : '▲ OCULTAR';
+  };
+
+  extSec.appendChild(extList);
+  card.appendChild(extSec);
+}
+
+function makeQtyCtrl(itemId, cartKey) {
+  var qty = cart[cartKey] ? cart[cartKey].qty : 0;
+  var ctrl  = document.createElement('div'); ctrl.className = 'qty-ctrl';
+  var minus = document.createElement('button'); minus.className = 'qty-btn'; minus.textContent = '−';
+  var num   = document.createElement('div');   num.className = 'qty-num'; num.textContent = qty;
+  var plus  = document.createElement('button'); plus.className = 'qty-btn'; plus.textContent = '+';
+  (function(id, k) {
+    minus.onclick = function(e) { e.stopPropagation(); changeQty(id, k, -1); };
+    plus.onclick  = function(e) { e.stopPropagation(); changeQty(id, k, +1); };
+  }(itemId, cartKey));
+  ctrl.appendChild(minus); ctrl.appendChild(num); ctrl.appendChild(plus);
+  return ctrl;
+}
+
+function changeQty(itemId, cartKey, delta) {
+  if (!cart[cartKey]) return;
+  cart[cartKey].qty += delta;
+  if (cart[cartKey].qty <= 0) delete cart[cartKey];
+  refreshCard(itemId);
+  renderCart();
+}
+
+function refreshCard(itemId) {
+  var el = document.getElementById('card-' + itemId);
+  if (!el) return;
+  var item = menuData[itemId];
+  if (!item) {
+    for (var i = 0; i < BEBIDAS_FIJAS.length; i++) { if (BEBIDAS_FIJAS[i].id === itemId) { item = BEBIDAS_FIJAS[i]; break; } }
+  }
+  if (item) el.replaceWith(buildCard(item));
+}
+
+function toggleExtra(itemId, extra) {
+  if (!cart[itemId]) return;
+  var extras = cart[itemId].extras || [];
+  var idx = extras.indexOf(extra.id);
+  if (idx === -1) extras.push(extra.id);
+  else extras.splice(idx, 1);
+  cart[itemId].extras = extras;
+  cart[itemId].unitPrice = (cart[itemId].item.price || 0) + calcExtrasPrice(extras);
+  refreshCard(itemId);
+  renderCart();
+}
+
+function calcExtrasPrice(eids) {
+  var t = 0;
+  eids.forEach(function(eid) {
+    var e = extrasData[eid];
+    if (e && e.price) t += e.price;
+  });
+  return t;
+}
+
+function getExtrasNames(eids) {
+  return eids.map(function(eid) {
+    var e = extrasData[eid];
+    if (e) return e.name;
+    return eid.replace(/^ex-/,'').replace(/_/g,' ').replace(/^./,function(c){ return c.toUpperCase(); });
+  }).join(', ');
+}
+
+// ══ RENDER CART ══
+function renderCart() {
+  var items = Object.values(cart);
+  var total = items.reduce(function(s,e){ return s + e.unitPrice * e.qty; }, 0);
+  var count = items.reduce(function(s,e){ return s + e.qty; }, 0);
+  document.getElementById('cart-count').textContent = count;
+  document.getElementById('cart-total').textContent = pricePrefix + total;
+  // Barra móvil actualizada
+  var mBar   = document.getElementById('mobile-cart-bar');
+  var mBadge = document.getElementById('mobile-badge');
+  var mLabel = document.getElementById('mobile-cart-label');
+  var mPrice = document.getElementById('mobile-total-price');
+  var mArrow = document.getElementById('mobile-cart-arrow');
+  if (mBadge) mBadge.textContent = count;
+  if (count > 0) {
+    if (mBar)   mBar.classList.add('has-items');
+    if (mLabel) mLabel.textContent = 'VER PEDIDO (' + count + (count===1?' ITEM':' ITEMS') + ')';
+    if (mPrice) mPrice.textContent = pricePrefix + total;
+    if (mArrow) mArrow.textContent = cartOpen ? '▼' : '▲';
+  } else {
+    if (mBar)   mBar.classList.remove('has-items');
+    if (mLabel) mLabel.textContent = 'TU PEDIDO';
+    if (mPrice) mPrice.textContent = '';
+    if (mArrow) mArrow.textContent = '▲';
+  }
+  var body   = document.getElementById('cart-body');
+  var footer = document.getElementById('cart-footer');
+  if (!items.length) {
+    body.innerHTML = '<div class="cart-empty"><div class="cart-empty-icon">🍕</div><div>Agrega productos<br>al pedido</div></div>';
+    footer.style.display = 'none'; return;
+  }
+  footer.style.display = 'block';
+  body.innerHTML = '';
+  items.forEach(function(entry) {
+    var row = document.createElement('div'); row.className = 'cart-item';
+    var info = document.createElement('div'); info.className = 'ci-info';
+    var nm = document.createElement('div'); nm.className = 'ci-name'; nm.textContent = entry.item.name;
+    info.appendChild(nm);
+    var subs = [];
+    if (entry.variant)      subs.push(entry.variant.label);
+    if (entry.sabor)        subs.push(entry.sabor);
+    if (entry.item.subname) subs.push(entry.item.subname);
+    if (entry.extras && entry.extras.length) subs.push('+ ' + getExtrasNames(entry.extras));
+    if (entry.note) subs.push('📝 ' + entry.note);
+    if (subs.length) { var sub = document.createElement('div'); sub.className = 'ci-sub'; sub.textContent = subs.join(' · '); info.appendChild(sub); }
+    var qty = document.createElement('div'); qty.className = 'ci-qty'; qty.textContent = '×' + entry.qty;
+    var pr  = document.createElement('div'); pr.className = 'ci-price'; pr.textContent = pricePrefix + (entry.unitPrice * entry.qty);
+    var del = document.createElement('button'); del.className = 'ci-del'; del.textContent = '✕';
+    (function(e) {
+      del.onclick = function() { delete cart[e.item.id]; refreshCard(e.item.id); renderCart(); };
+    }(entry));
+    row.appendChild(info); row.appendChild(qty); row.appendChild(pr); row.appendChild(del);
+    body.appendChild(row);
+  });
+}
+
+// ══ UPSELL ══
+function buildUpsellModals() {
+  var postres = Object.values(menuData).filter(function(i){ return i.cat === 'Postres'; });
+  renderUpsellGrid(postres, 'upsell-postres');
+  renderUpsellGrid(BEBIDAS_FIJAS, 'upsell-bebidas');
+}
+
+function renderUpsellGrid(items, cid) {
+  var grid = document.getElementById(cid);
+  if (!grid) return;
+  grid.innerHTML = '';
+  if (!items.length) { grid.innerHTML = '<div style="font-size:0.75rem;color:var(--muted);padding:6px 0">No disponible</div>'; return; }
+  items.forEach(function(item) {
+    var card = document.createElement('div'); card.className = 'upsell-card'; card.id = 'ups-' + item.id;
+    var nm = document.createElement('div'); nm.className = 'upsell-card-name';
+    nm.textContent = item.name + (item.subname ? ' · ' + item.subname : '');
+    var pr = document.createElement('div'); pr.className = 'upsell-card-price'; pr.textContent = pricePrefix + item.price;
+    card.appendChild(nm); card.appendChild(pr);
+    (function(it) {
+      card.onclick = function() {
+        card.classList.toggle('selected');
+        if (card.classList.contains('selected')) upsellSelected[it.id] = it;
+        else delete upsellSelected[it.id];
+      };
+    }(item));
+    grid.appendChild(card);
+  });
+}
+
+function startCheckout() {
+  if (!Object.keys(cart).length) return;
+  upsellSelected = {};
+  document.querySelectorAll('.upsell-card').forEach(function(c){ c.classList.remove('selected'); });
+  openModal('modal-upsell');
+}
+function skipUpsell() { upsellSelected = {}; closeModal('modal-upsell'); openModal('modal-delivery'); }
+function addUpsellAndContinue() {
+  Object.values(upsellSelected).forEach(function(item) {
+    if (cart[item.id]) cart[item.id].qty++;
+    else cart[item.id] = { item: item, qty: 1, unitPrice: item.price, extras: [], sabor: null, note: '' };
+  });
+  if (Object.keys(upsellSelected).length) { renderCart(); showToast('✓ Productos agregados'); }
+  closeModal('modal-upsell');
+  openModal('modal-delivery');
+}
+
+// ══ GEOLOCALIZACIÓN: Leaflet + Nominatim con autocomplete ══
+
+function showMap(lat, lng) {
+  var placeholder = document.getElementById('map-placeholder-txt');
+  if (placeholder) placeholder.classList.add('hidden');
+
+  if (!mapReady) {
+    // Inicializar mapa — el div ya es visible así que Leaflet puede calcular dimensiones
+    leafletMap = L.map('leaflet-map', {
+      zoomControl: true,
+      attributionControl: true,
+      scrollWheelZoom: true
+    }).setView([lat, lng], 16);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19,
+      attribution: '© <a href="https://openstreetmap.org">OSM</a>'
+    }).addTo(leafletMap);
+
+    mapReady = true;
+  } else {
+    leafletMap.setView([lat, lng], 16);
+  }
+
+  // Marcador amarillo arrastrable
+  var icon = L.divIcon({
+    html: '<div style="width:20px;height:20px;background:#E8A820;border-radius:50%;border:3px solid #fff;box-shadow:0 2px 10px rgba(0,0,0,0.8);"></div>',
+    iconSize: [20, 20], iconAnchor: [10, 10], className: ''
+  });
+
+  if (leafletMarker) {
+    leafletMarker.setLatLng([lat, lng]);
+  } else {
+    leafletMarker = L.marker([lat, lng], { draggable: true, icon: icon }).addTo(leafletMap);
+    leafletMarker.on('dragend', function(ev) {
+      var pos = ev.target.getLatLng();
+      geoLat = pos.lat; geoLng = pos.lng;
+      updateCoords(pos.lat, pos.lng);
+      reverseGeocode(pos.lat, pos.lng, true);
+      locationConfirmed = false;
+      document.getElementById('confirm-loc').checked = false;
+    });
+  }
+
+  geoLat = lat; geoLng = lng;
+  updateCoords(lat, lng);
+
+  // Hint de arrastre
+  var hint = document.getElementById('map-drag-hint');
+  if (hint) { hint.style.display = 'block'; setTimeout(function(){ hint.style.display = 'none'; }, 3000); }
+
+  document.getElementById('map-confirm-row').classList.add('show');
+
+  // CRÍTICO: forzar resize múltiples veces (el modal puede estar en transición)
+  setTimeout(function(){ if (leafletMap) leafletMap.invalidateSize(); }, 100);
+  setTimeout(function(){ if (leafletMap) leafletMap.invalidateSize(); }, 400);
+  setTimeout(function(){ if (leafletMap) leafletMap.invalidateSize(); }, 800);
+}
+
+function updateCoords(lat, lng) {
+  document.getElementById('geo-coords').textContent =
+    'Lat: ' + lat.toFixed(6) + '  ·  Lng: ' + lng.toFixed(6);
+}
+
+// Reverse geocoding: convierte coordenadas en dirección legible
+function reverseGeocode(lat, lng, fillInput) {
+  fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lng + '&zoom=18&addressdetails=1', {
+    headers: { 'Accept-Language': 'es' },
+    mode: 'cors'
+  }).then(function(r){ return r.json(); })
+    .then(function(data) {
+      if (!data || !data.address) return;
+      var a = data.address;
+      var parts = [];
+      var road = a.road || a.pedestrian || a.path || a.footway || '';
+      if (road) parts.push(road + (a.house_number ? ' ' + a.house_number : ''));
+      if (a.neighbourhood || a.suburb) parts.push(a.neighbourhood || a.suburb);
+      if (a.city_district) parts.push(a.city_district);
+      var addrStr = parts.filter(Boolean).join(', ');
+      if (!addrStr) addrStr = data.display_name.split(',').slice(0,3).join(',').trim();
+      var st = document.getElementById('geo-status');
+      st.className = 'geo-status ok';
+      st.textContent = '✓ ' + addrStr;
+      if (fillInput && addrStr) {
+        document.getElementById('del-address').value = addrStr;
+      }
+    }).catch(function(){
+      // Silencioso — el marcador ya está en el mapa
+    });
+}
+
+// Búsqueda forward geocoding con sugerencias
+var _suggestTimer = null;
+function onAddressInput() {
+  var val = document.getElementById('del-address').value.trim();
+  clearTimeout(_suggestTimer);
+  locationConfirmed = false;
+  document.getElementById('confirm-loc').checked = false;
+  if (val.length < 4) { hideSuggestions(); return; }
+  _suggestTimer = setTimeout(function(){ fetchSuggestions(val); }, 500);
+}
+
+function fetchSuggestions(query) {
+  var st = document.getElementById('geo-status');
+  st.className = 'geo-status'; st.textContent = 'Buscando...';
+
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&q='
+    + encodeURIComponent(query + ', Caracas, Venezuela')
+    + '&limit=5&countrycodes=ve&addressdetails=1';
+
+  fetch(url, {
+    headers: { 'Accept-Language': 'es' },
+    mode: 'cors'
+  }).then(function(r){ return r.json(); })
+    .then(function(results) {
+      st.className = 'geo-status'; st.textContent = '';
+      if (!results || !results.length) {
+        hideSuggestions();
+        // Si no hay resultados, intentar sin filtro de país
+        fetchSuggestionsGlobal(query);
+        return;
+      }
+      var box = document.getElementById('geo-suggestions');
+      box.innerHTML = '';
+      results.forEach(function(r) {
+        var item = document.createElement('div');
+        item.className = 'geo-sug-item';
+        var label = r.display_name.split(',').slice(0,4).join(', ');
+        item.textContent = label;
+        (function(res) {
+          item.onmousedown = function(e) {
+            e.preventDefault();
+            selectSuggestion(res);
+          };
+        }(r));
+        box.appendChild(item);
+      });
+      box.classList.add('show');
+    }).catch(function(err) {
+      st.className = 'geo-status err';
+      st.textContent = '✗ Error de búsqueda. Usa el GPS o arrastra el mapa.';
+      hideSuggestions();
+    });
+}
+
+// Búsqueda sin filtro de país (fallback)
+function fetchSuggestionsGlobal(query) {
+  var url = 'https://nominatim.openstreetmap.org/search?format=json&q='
+    + encodeURIComponent(query)
+    + '&limit=3&addressdetails=1';
+  fetch(url, { headers: { 'Accept-Language': 'es' }, mode: 'cors' })
+    .then(function(r){ return r.json(); })
+    .then(function(results) {
+      if (!results || !results.length) return;
+      var box = document.getElementById('geo-suggestions');
+      box.innerHTML = '';
+      results.forEach(function(r) {
+        var item = document.createElement('div');
+        item.className = 'geo-sug-item';
+        item.textContent = r.display_name.split(',').slice(0,4).join(', ');
+        (function(res) { item.onmousedown = function(e){ e.preventDefault(); selectSuggestion(res); }; }(r));
+        box.appendChild(item);
+      });
+      if (box.children.length) box.classList.add('show');
+    }).catch(function(){});
+}
+
+function selectSuggestion(result) {
+  var addrShort = result.display_name.split(',').slice(0,3).join(', ');
+  document.getElementById('del-address').value = addrShort;
+  hideSuggestions();
+  var lat = parseFloat(result.lat), lng = parseFloat(result.lon);
+  showMap(lat, lng);
+  var st = document.getElementById('geo-status');
+  st.className = 'geo-status ok';
+  st.textContent = '✓ ' + addrShort;
+}
+
+function showSuggestions() {
+  var box = document.getElementById('geo-suggestions');
+  if (box.children.length) box.classList.add('show');
+}
+
+function hideSuggestions() {
+  setTimeout(function(){
+    document.getElementById('geo-suggestions').classList.remove('show');
+  }, 150);
+}
+
+// GPS de alta precisión
+function useMyLocation() {
+  if (!navigator.geolocation) { showToast('Geolocalización no soportada'); return; }
+  var btn = document.getElementById('btn-geo');
+  var st  = document.getElementById('geo-status');
+  btn.disabled = true; btn.textContent = '⏳';
+  st.className = 'geo-status'; st.textContent = 'Obteniendo GPS...';
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      btn.disabled = false; btn.textContent = '📍 GPS';
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      var acc = Math.round(pos.coords.accuracy);
+      st.className = 'geo-status ok';
+      st.textContent = '✓ GPS obtenido (precisión ±' + acc + 'm)';
+      showMap(lat, lng);
+      reverseGeocode(lat, lng, true);
+      showToast('📍 Ubicación GPS ±' + acc + 'm');
+    },
+    function(err) {
+      btn.disabled = false; btn.textContent = '📍 GPS';
+      var msgs = {1:'Permiso denegado',2:'Posición no disponible',3:'Tiempo agotado'};
+      var msg = msgs[err.code] || 'Error GPS';
+      st.className = 'geo-status err'; st.textContent = '✗ ' + msg;
+      showToast(msg);
+    },
+    { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
+  );
+}
+
+function onConfirmLocation() {
+  locationConfirmed = document.getElementById('confirm-loc').checked;
+}
+
+function selectMunicipio(el) {
+  document.querySelectorAll('.muni-chip').forEach(function(c){ c.classList.remove('selected'); });
+  el.classList.add('selected');
+  selectedMunicipio = el.dataset.muni;
+  document.getElementById('err-municipio').classList.remove('show');
+}
+
+// ══ CONFIRMAR / ENVIAR ══
+function confirmDelivery() {
+  var muni    = selectedMunicipio;
+  var address = document.getElementById('del-address').value.trim();
+  var nombre  = document.getElementById('del-nombre').value.trim();
+  var lugar   = document.getElementById('del-lugar').value.trim();
+  var tel     = document.getElementById('del-telefono').value.trim();
+  var cedula  = document.getElementById('del-cedula').value.trim();
+  ['err-municipio','err-address','err-general'].forEach(function(id){ document.getElementById(id).classList.remove('show'); });
+  var errors = [];
+  if (!muni)    { document.getElementById('err-municipio').classList.add('show'); errors.push('municipio'); }
+  if (!address) { document.getElementById('err-address').classList.add('show'); errors.push('dirección'); }
+  if (!nombre)  errors.push('nombre');
+  if (!tel)     errors.push('teléfono');
+  if (!cedula)  errors.push('cédula');
+  if (errors.length) {
+    var g = document.getElementById('err-general');
+    g.textContent = 'Completa: ' + errors.join(', ');
+    g.classList.add('show'); return;
+  }
+  sendOrder(muni, address, lugar, nombre, tel, cedula);
+}
+
+function sendOrder(muni, address, lugar, nombre, tel, cedula) {
+  var items = Object.values(cart);
+  if (!items.length) return;
+  var total = items.reduce(function(s,e){ return s + e.unitPrice * e.qty; }, 0);
+  var note  = (document.getElementById('order-note').value || '').trim();
+  var msg = '\uD83C\uDF55 *PEDIDO PIZPA COMEDY CLUB*\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\n';
+  items.forEach(function(e) {
+    msg += '\n\u2022 *' + e.item.name + '*';
+    if (e.variant)      msg += ' ' + e.variant.label;
+    if (e.sabor)        msg += ' \u00b7 ' + e.sabor;
+    if (e.item.subname) msg += ' \u00b7 ' + e.item.subname;
+    msg += '  \u00d7' + e.qty + '  \u2014  ' + pricePrefix + (e.unitPrice * e.qty);
+    if (e.extras && e.extras.length) msg += '\n  _Extras: ' + getExtrasNames(e.extras) + '_';
+    if (e.note) msg += '\n  _\uD83D\uDCDD ' + e.note + '_';
+  });
+  msg += '\n\n\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500\u2500';
+  msg += '\n\uD83D\uDCB0 *TOTAL: ' + pricePrefix + total + '*';
+  if (note) msg += '\n\u2139\uFE0F _' + note + '_';
+  msg += '\n\n\uD83D\uDE9A *DELIVERY*\n\uD83D\uDCCD Municipio ' + muni + ', Caracas';
+  msg += '\n\uD83C\uDFE0 ' + (lugar ? lugar + ' \u2014 ' : '') + address;
+  if (geoLat && geoLng) {
+    msg += '\n\uD83D\uDDFA https://maps.google.com/?q=' + geoLat.toFixed(6) + ',' + geoLng.toFixed(6);
+  }
+  msg += '\n\uD83D\uDC64 ' + nombre + '  |  CI: ' + cedula;
+  msg += '\n\uD83D\uDCDE ' + tel;
+  window.open('https://wa.me/' + WA_NUMBER + '?text=' + encodeURIComponent(msg), '_blank');
+  closeModal('modal-delivery');
+  showToast('\uD83D\uDE80 Pedido enviado por WhatsApp');
+}
+
+// ══ MODALES ══
+function openModal(id) {
+  document.getElementById(id).classList.add('open');
+  if (id === 'modal-delivery') {
+    // Inicializar mapa centrado en Caracas si aún no se ha iniciado
+    setTimeout(function(){
+      if (!mapReady) {
+        showMap(10.4806, -66.9036);
+      } else {
+        leafletMap.invalidateSize();
+      }
+    }, 300);
+  }
+}
+function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(function(o) {
+  o.addEventListener('click', function(e) { if (e.target === o) o.classList.remove('open'); });
+});
+
+function toggleCart() {
+  cartOpen = !cartOpen;
+  var panel   = document.getElementById('cart-panel');
+  var overlay = document.getElementById('cart-overlay');
+  var btn     = document.getElementById('cart-toggle-btn');
+  var arrow   = document.getElementById('mobile-cart-arrow');
+  var isMobile = window.innerWidth <= 860;
+
+  panel.classList.toggle('open', cartOpen);
+  if (overlay) overlay.classList.toggle('show', cartOpen);
+
+  if (isMobile) {
+    if (cartOpen) {
+      document.body.dataset.scrollY = window.scrollY;
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+      var savedY = parseInt(document.body.dataset.scrollY || '0');
+      window.scrollTo(0, savedY);
+    }
+  }
+
+  if (btn)   btn.textContent   = cartOpen ? '▼' : '▲';
+  if (arrow) arrow.textContent = cartOpen ? '▼' : '▲';
+
+  if (cartOpen) {
+    var cb = document.getElementById('cart-body');
+    if (cb) cb.scrollTop = 0;
+  }
+}
+
+function showToast(msg) {
+  var el = document.getElementById('toast');
+  el.textContent = msg; el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(function(){ el.classList.remove('show'); }, 2200);
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

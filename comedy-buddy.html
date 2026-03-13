@@ -1,0 +1,658 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Comedy Buddy · Pizpa</title>
+<link rel="icon" href="favicon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --yellow: #E8A820;
+    --dark:   #0e0e0d;
+    --card:   #1a1a19;
+    --card2:  #222221;
+    --cream:  #F5EDD6;
+    --muted:  rgba(245,237,214,0.38);
+    --red:    #ff5a5a;
+    --green:  #5fdd8a;
+    --radius: 3px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--dark);
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* ── NAV ── */
+  nav {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 18px 40px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    background: rgba(14,14,13,0.95);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    backdrop-filter: blur(10px);
+  }
+  .nav-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    text-decoration: none;
+  }
+  .nav-logo img { height: 36px; }
+  .nav-badge {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 3px;
+    color: #000;
+    background: var(--yellow);
+    padding: 3px 10px;
+    border-radius: 2px;
+  }
+  .nav-back {
+    font-size: 0.75rem;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-decoration: none;
+    font-family: 'Bebas Neue', sans-serif;
+    transition: color 0.15s;
+  }
+  .nav-back:hover { color: var(--yellow); }
+
+  /* ── HERO ── */
+  .hero {
+    text-align: center;
+    padding: 56px 24px 40px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(232,168,32,0.08) 0%, transparent 70%);
+  }
+  .hero-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.7rem;
+    letter-spacing: 5px;
+    color: var(--yellow);
+    margin-bottom: 14px;
+    opacity: 0.8;
+  }
+  .hero-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.8rem, 8vw, 5rem);
+    letter-spacing: 4px;
+    line-height: 0.95;
+    color: #fff;
+    margin-bottom: 16px;
+  }
+  .hero-title span { color: var(--yellow); }
+  .hero-sub {
+    font-size: 0.9rem;
+    color: var(--muted);
+    max-width: 480px;
+    margin: 0 auto;
+    line-height: 1.65;
+  }
+
+  /* ── LAYOUT PRINCIPAL ── */
+  .main {
+    flex: 1;
+    display: grid;
+    grid-template-columns: 340px 1fr;
+    gap: 0;
+    max-width: 1100px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 0;
+  }
+
+  /* ── PANEL IZQUIERDO — HERRAMIENTAS ── */
+  .sidebar {
+    border-right: 1px solid rgba(255,255,255,0.07);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+  }
+
+  .tool-label {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.65rem;
+    letter-spacing: 4px;
+    color: var(--yellow);
+    margin-bottom: 10px;
+  }
+
+  /* Modo */
+  .mode-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .mode-btn {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    color: var(--muted);
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.68rem;
+    letter-spacing: 1.5px;
+    padding: 10px 6px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    border-radius: var(--radius);
+  }
+  .mode-btn.active {
+    background: rgba(232,168,32,0.12);
+    border-color: rgba(232,168,32,0.5);
+    color: var(--yellow);
+  }
+  .mode-btn:hover:not(.active) {
+    background: rgba(255,255,255,0.07);
+    color: #fff;
+  }
+
+  /* Input de premisa */
+  .premise-wrap { display: flex; flex-direction: column; gap: 8px; }
+  .premise-input {
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.82rem;
+    padding: 10px 12px;
+    resize: vertical;
+    min-height: 90px;
+    outline: none;
+    border-radius: var(--radius);
+    transition: border-color 0.15s;
+    width: 100%;
+  }
+  .premise-input:focus { border-color: rgba(232,168,32,0.5); }
+  .premise-input::placeholder { color: var(--muted); }
+
+  /* Técnicas rápidas */
+  .tech-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .tech-chip {
+    font-size: 0.66rem;
+    letter-spacing: 1px;
+    color: var(--cream);
+    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent;
+    padding: 5px 10px;
+    cursor: pointer;
+    border-radius: 2px;
+    transition: all 0.15s;
+    font-family: 'DM Sans', sans-serif;
+  }
+  .tech-chip:hover { border-color: var(--yellow); color: var(--yellow); background: rgba(232,168,32,0.06); }
+  .tech-chip.selected { border-color: var(--yellow); color: var(--yellow); background: rgba(232,168,32,0.1); }
+
+  /* Botón generar */
+  .gen-btn {
+    width: 100%;
+    background: var(--yellow);
+    color: #000;
+    border: none;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.88rem;
+    letter-spacing: 3px;
+    padding: 14px;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    border-radius: var(--radius);
+  }
+  .gen-btn:hover { opacity: 0.88; }
+  .gen-btn:active { transform: scale(0.98); }
+  .gen-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* Referencia */
+  .ref-box {
+    background: rgba(232,168,32,0.05);
+    border: 1px solid rgba(232,168,32,0.15);
+    padding: 12px 14px;
+    border-radius: var(--radius);
+    font-size: 0.72rem;
+    color: var(--muted);
+    line-height: 1.6;
+  }
+  .ref-box strong { color: var(--yellow); }
+
+  /* ── PANEL DERECHO — CHAT ── */
+  .chat-panel {
+    display: flex;
+    flex-direction: column;
+    height: calc(100vh - 73px);
+    position: sticky;
+    top: 73px;
+  }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 28px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(232,168,32,0.15) transparent;
+  }
+  .chat-messages::-webkit-scrollbar { width: 4px; }
+  .chat-messages::-webkit-scrollbar-thumb { background: rgba(232,168,32,0.15); border-radius: 2px; }
+
+  .msg-wrap { display: flex; flex-direction: column; gap: 4px; animation: fadein 0.2s ease; }
+  @keyframes fadein { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+
+  .msg-role {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 0.6rem;
+    letter-spacing: 3px;
+    color: var(--muted);
+  }
+  .msg-role.buddy { color: var(--yellow); }
+
+  .msg-bubble {
+    font-size: 0.88rem;
+    line-height: 1.65;
+    color: var(--cream);
+    padding: 14px 18px;
+    border-radius: var(--radius);
+    max-width: 85%;
+    white-space: pre-wrap;
+  }
+  .msg-bubble.user {
+    background: rgba(255,255,255,0.05);
+    border: 1px solid rgba(255,255,255,0.08);
+    align-self: flex-end;
+  }
+  .msg-bubble.buddy {
+    background: rgba(232,168,32,0.07);
+    border: 1px solid rgba(232,168,32,0.18);
+    align-self: flex-start;
+  }
+  .msg-bubble.buddy strong { color: var(--yellow); }
+  .msg-bubble.buddy em { color: rgba(245,237,214,0.65); font-style: italic; }
+
+  /* Typing */
+  .typing-indicator {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    padding: 12px 18px;
+    background: rgba(232,168,32,0.07);
+    border: 1px solid rgba(232,168,32,0.18);
+    border-radius: var(--radius);
+    width: fit-content;
+    animation: fadein 0.2s ease;
+  }
+  .typing-indicator.show { display: flex; }
+  .typing-indicator span {
+    width: 7px; height: 7px;
+    background: var(--yellow);
+    border-radius: 50%;
+    animation: tdot 1.3s infinite;
+    opacity: 0.7;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+  @keyframes tdot {
+    0%,60%,100% { transform: translateY(0); }
+    30% { transform: translateY(-6px); }
+  }
+
+  /* Input de chat */
+  .chat-input-area {
+    border-top: 1px solid rgba(255,255,255,0.07);
+    padding: 16px 24px;
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+    background: var(--dark);
+  }
+  .chat-textarea {
+    flex: 1;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.1);
+    color: var(--cream);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    padding: 10px 14px;
+    resize: none;
+    height: 44px;
+    max-height: 120px;
+    outline: none;
+    border-radius: var(--radius);
+    line-height: 1.5;
+    transition: border-color 0.15s;
+  }
+  .chat-textarea:focus { border-color: rgba(232,168,32,0.4); }
+  .chat-textarea::placeholder { color: var(--muted); }
+  .send-btn {
+    background: var(--yellow);
+    border: none;
+    color: #000;
+    width: 44px;
+    height: 44px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    border-radius: var(--radius);
+    transition: opacity 0.15s;
+  }
+  .send-btn:hover { opacity: 0.85; }
+  .send-btn svg { width: 17px; height: 17px; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 768px) {
+    nav { padding: 14px 20px; }
+    .hero { padding: 36px 20px 28px; }
+    .main { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid rgba(255,255,255,0.07); }
+    .chat-panel { height: auto; position: static; }
+    .chat-messages { height: 400px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<nav>
+  <a href="index.html" class="nav-logo">
+    <img src="img/imagen_1.png" alt="Pizpa">
+    <span class="nav-badge">COMEDY BUDDY</span>
+  </a>
+  <a href="index.html" class="nav-back">← VOLVER AL SITIO</a>
+</nav>
+
+<!-- HERO -->
+<div class="hero">
+  <div class="hero-label">🎤 Herramienta para comediantes</div>
+  <div class="hero-title">COMEDY<br><span>BUDDY</span></div>
+  <div class="hero-sub">Tu socio para escribir chistes. Dale una premisa, elige cómo trabajarla y el Buddy te ayuda a construir el remate — basado en las técnicas de los mejores libros de stand-up.</div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR — HERRAMIENTAS -->
+  <aside class="sidebar">
+
+    <!-- Modo de trabajo -->
+    <div>
+      <div class="tool-label">¿Cómo quieres trabajar?</div>
+      <div class="mode-grid">
+        <button class="mode-btn active" data-mode="premisa" onclick="setMode(this)">💡 Premisa</button>
+        <button class="mode-btn" data-mode="remate" onclick="setMode(this)">🎯 Remate</button>
+        <button class="mode-btn" data-mode="tag" onclick="setMode(this)">🔁 Tag-on</button>
+        <button class="mode-btn" data-mode="roast" onclick="setMode(this)">🔥 Roast</button>
+        <button class="mode-btn" data-mode="historia" onclick="setMode(this)">📖 Historia</button>
+        <button class="mode-btn" data-mode="libre" onclick="setMode(this)">🎙 Libre</button>
+      </div>
+    </div>
+
+    <!-- Premisa -->
+    <div class="premise-wrap">
+      <div class="tool-label">Tu premisa o idea</div>
+      <textarea class="premise-input" id="premise-input" placeholder="Ej: El tráfico en Caracas es tan malo que...&#10;&#10;O cualquier situación, observación o idea que quieras convertir en chiste."></textarea>
+    </div>
+
+    <!-- Técnicas -->
+    <div>
+      <div class="tool-label">Técnica de construcción</div>
+      <div class="tech-grid">
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="misdirection">Misdirection</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="rule-of-3">Rule of 3</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="actout">Act-out</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="exageracion">Exageración</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="autoderision">Autodirección</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="pov">Cambio de POV</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="punchup">Punch up</button>
+        <button class="tech-chip" onclick="toggleTech(this)" data-tech="callback">Callback</button>
+      </div>
+    </div>
+
+    <!-- Generar -->
+    <button class="gen-btn" id="gen-btn" onclick="generateFromSidebar()">🎤 GENERAR CON BUDDY</button>
+
+    <!-- Referencia -->
+    <div class="ref-box">
+      <strong>Basado en:</strong><br>
+      The New Comedy Bible · Judy Carter<br>
+      Step by Step to Stand-Up · Greg Dean<br>
+      Mastering Stand-Up · Stephen Rosenfield<br>
+      <br>
+      <em>El Buddy conoce estructura de chiste, setup/punchline, misdirection, rule of three, callbacks, act-outs, POV y más.</em>
+    </div>
+
+  </aside>
+
+  <!-- CHAT -->
+  <div class="chat-panel">
+    <div class="chat-messages" id="chat-messages">
+      <div class="msg-wrap">
+        <div class="msg-role buddy">🎤 COMEDY BUDDY</div>
+        <div class="msg-bubble buddy">¡Bienvenido al Comedy Buddy de Pizpa! 🎭
+
+Soy tu socio para escribir. Puedo ayudarte a:
+
+• <strong>Construir un chiste desde cero</strong> — dame una premisa
+• <strong>Mejorar el remate</strong> de algo que ya tienes
+• <strong>Agregar tag-ons</strong> para exprimir más el chiste
+• <strong>Analizar la estructura</strong> de tu material
+• <strong>Rebotar ideas</strong> y explorar ángulos
+
+Elige un modo en el panel y escribe tu premisa, o simplemente escríbeme aquí y arrancamos. 🍕</div>
+      </div>
+    </div>
+    <div class="typing-indicator" id="typing-indicator">
+      <span></span><span></span><span></span>
+    </div>
+    <div class="chat-input-area">
+      <textarea
+        class="chat-textarea"
+        id="chat-input"
+        placeholder="Escribe aquí o usa el panel de la izquierda..."
+        onkeydown="handleKey(event)"
+        oninput="autoResize(this)"
+      ></textarea>
+      <button class="send-btn" onclick="sendMessage()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ── ESTADO ──────────────────────────────────────────────
+let currentMode = 'premisa';
+let selectedTechs = [];
+let chatHistory = [];
+
+// ── SYSTEM PROMPT ────────────────────────────────────────
+const SYSTEM = `Eres Comedy Buddy, el asistente de escritura de stand-up comedy de Pizpa Comedy Club. Eres directo, técnico cuando hace falta y siempre práctico — como un colega comediante experimentado.
+
+TU BASE DE CONOCIMIENTO (libros reales de stand-up):
+
+📚 THE NEW COMEDY BIBLE (Judy Carter):
+- El chiste nace de una actitud: algo te parece Scary, Hard, Stupid o Weird
+- Setup = premisa neutra que establece el mundo. Punchline = la actitud del comediante sobre ese mundo
+- "Material cannot be emotionally neutral" — el punto de vista es todo
+- Tag-ons: chistes adicionales que explotan el mismo setup sin repetirlo
+- La regla: termina siempre en el punch, no después
+
+📚 STEP BY STEP TO STAND-UP (Greg Dean):
+- Estructura básica: Setup → Punchline (dos interpretaciones simultáneas)
+- El "connector" es la palabra/frase que activa el cambio de interpretación
+- Misdirection: llevar al público por un camino y romper la expectativa
+- Rule of Three: dos elementos que establecen patrón + uno que lo quiebra
+- Los chistes más fuertes tienen setup que funciona en dos niveles
+
+📚 MASTERING STAND-UP (Stephen Rosenfield):
+- Autenticidad sobre todo: el mejor material viene de TU experiencia real
+- El "act-out": actuar físicamente la escena en lugar de narrarla
+- Callbacks: referenciar material anterior para obtener risa adicional
+- Punch up: tomar lo que ya funciona y hacerlo más específico, más visual, más extremo
+- El comediante como personaje: el público ríe contigo O de ti, pero siempre por ti
+
+CÓMO RESPONDER:
+- Siempre ofrece UNA versión concreta del chiste o remate
+- Explica brevemente POR QUÉ funciona (qué técnica usaste)
+- Si el material es débil, dilo con respeto y muestra cómo arreglarlo
+- Haz preguntas para entender mejor el punto de vista del comediante
+- Sugiere variaciones o ángulos alternativos cuando sea útil
+- Respuestas en español, tono profesional pero cálido
+- Puedes usar formato para claridad: Setup: / Punchline: / Tag: etc.`;
+
+// ── MODO ────────────────────────────────────────────────
+function setMode(btn) {
+  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentMode = btn.dataset.mode;
+  updatePlaceholder();
+}
+
+function updatePlaceholder() {
+  const p = document.getElementById('premise-input');
+  const placeholders = {
+    premisa:  'Escribe tu premisa o idea. Ej: "El tráfico en Caracas es tan malo que..."',
+    remate:   'Pega tu setup y el remate que tienes. Te ayudo a mejorarlo.',
+    tag:      'Escribe tu chiste completo y te propongo tag-ons para exprimir más.',
+    roast:    'Descríbeme el target del roast (persona, situación, lugar) y el tono.',
+    historia:'Cuéntame la historia o anécdota. La convertimos en bit de stand-up.',
+    libre:    'Escribe lo que quieras — premisa, borrador, idea sin forma. Arrancamos.',
+  };
+  p.placeholder = placeholders[currentMode] || 'Tu premisa aquí...';
+}
+
+// ── TÉCNICAS ────────────────────────────────────────────
+function toggleTech(btn) {
+  btn.classList.toggle('selected');
+  const tech = btn.dataset.tech;
+  if (btn.classList.contains('selected')) {
+    selectedTechs.push(tech);
+  } else {
+    selectedTechs = selectedTechs.filter(t => t !== tech);
+  }
+}
+
+// ── GENERAR DESDE SIDEBAR ───────────────────────────────
+function generateFromSidebar() {
+  const premise = document.getElementById('premise-input').value.trim();
+  if (!premise) {
+    document.getElementById('premise-input').focus();
+    return;
+  }
+  const modeLabels = {
+    premisa: 'construir un chiste a partir de esta premisa',
+    remate: 'mejorar el remate de este material',
+    tag: 'agregar tag-ons a este chiste',
+    roast: 'escribir un roast sobre esto',
+    historia: 'convertir esta historia en un bit de stand-up',
+    libre: 'trabajar con esta idea',
+  };
+  const techText = selectedTechs.length
+    ? `\nTécnicas a usar: ${selectedTechs.join(', ')}.`
+    : '';
+
+  const msg = `Modo: ${modeLabels[currentMode] || currentMode}.\n\n${premise}${techText}`;
+  document.getElementById('chat-input').value = msg;
+  sendMessage();
+}
+
+// ── CHAT ────────────────────────────────────────────────
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+
+function autoResize(el) {
+  el.style.height = '44px';
+  el.style.height = Math.min(el.scrollHeight, 120) + 'px';
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const text  = input.value.trim();
+  if (!text) return;
+  input.value = '';
+  input.style.height = '44px';
+
+  addMessage('user', text);
+  chatHistory.push({ role: 'user', content: text });
+
+  showTyping(true);
+  document.getElementById('gen-btn').disabled = true;
+
+  try {
+    const res = await fetch('/.netlify/functions/claude-chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        system: SYSTEM,
+        messages: chatHistory.slice(-16),
+        max_tokens: 1000
+      })
+    });
+    const data = await res.json();
+    const reply = data.content?.[0]?.text || 'Algo falló. Intenta de nuevo.';
+    showTyping(false);
+    addMessage('buddy', reply);
+    chatHistory.push({ role: 'assistant', content: reply });
+  } catch(e) {
+    showTyping(false);
+    addMessage('buddy', 'Se fue la señal. Intenta de nuevo.');
+  }
+  document.getElementById('gen-btn').disabled = false;
+}
+
+function addMessage(role, text) {
+  const container = document.getElementById('chat-messages');
+  const wrap = document.createElement('div');
+  wrap.className = 'msg-wrap';
+
+  const label = document.createElement('div');
+  label.className = `msg-role ${role === 'buddy' ? 'buddy' : ''}`;
+  label.textContent = role === 'buddy' ? '🎤 COMEDY BUDDY' : '👤 TÚ';
+
+  const bubble = document.createElement('div');
+  bubble.className = `msg-bubble ${role}`;
+  bubble.innerHTML = text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.*?)\*/g, '<em>$1</em>')
+    .replace(/\n/g, '<br>');
+
+  wrap.appendChild(label);
+  wrap.appendChild(bubble);
+  container.appendChild(wrap);
+  container.scrollTop = container.scrollHeight;
+}
+
+function showTyping(show) {
+  const t = document.getElementById('typing-indicator');
+  t.classList.toggle('show', show);
+  const container = document.getElementById('chat-messages');
+  container.scrollTop = container.scrollHeight;
+}
+</script>
+
+</body>
+</html>

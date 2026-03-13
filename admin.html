@@ -1,0 +1,3102 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pizpa Admin</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+<!-- ✅ REEMPLAZA ESTOS VALORES CON LOS DE TU PROYECTO FIREBASE -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-app.js";
+  import { getDatabase, ref, set, get, push, remove, onValue } from "https://www.gstatic.com/firebasejs/12.10.0/firebase-database.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyCtskV-XYL08PPMc8yQAFRucICPfgs6PCs",
+    authDomain: "pizpa-web.firebaseapp.com",
+    databaseURL: "https://pizpa-web-default-rtdb.firebaseio.com",
+    projectId: "pizpa-web",
+    storageBucket: "pizpa-web.firebasestorage.app",
+    messagingSenderId: "426938726162",
+    appId: "1:426938726162:web:906157bfceef13e71f25cb",
+    measurementId: "G-75T5BC3RGZ"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+  window._db = db;
+  window._dbRef = ref;
+  window._dbSet = set;
+  window._dbGet = get;
+  window._dbPush = push;
+  window._dbRemove  = remove;
+  window._dbOnValue = onValue;
+
+  // Avisar que Firebase está listo — el login lo maneja el script normal
+  window.addEventListener('DOMContentLoaded', () => {
+    if (typeof window.checkLogin === 'function') window.checkLogin();
+    else window.addEventListener('adminReady', () => window.checkLogin());
+  })
+
+  // ── SPLASH PRÓXIMAMENTE ──────────────────────────────────
+  var _spPreviewInterval = null;
+
+  function loadSplash() {
+    window._dbGet(window._dbRef(window._db, 'countdown_splash')).then(function(snap) {
+      var cfg = snap.val();
+      var badge = document.getElementById('sp-status-badge');
+      var info  = document.getElementById('sp-current-info');
+
+      if (!cfg) {
+        if (badge) { badge.textContent = 'SIN CONFIGURAR'; badge.style.cssText = 'font-size:0.72rem;letter-spacing:2px;padding:6px 14px;border-radius:2px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);'; }
+        if (info)  info.textContent = 'No hay splash configurado.';
+        updateSplashToggle(false);
+        return;
+      }
+
+      var isActive = cfg.active !== false;
+      updateSplashToggle(isActive);
+      if (badge) {
+        badge.textContent = isActive ? 'ACTIVO' : 'OCULTO';
+        badge.style.cssText = isActive
+          ? 'font-size:0.72rem;letter-spacing:2px;padding:6px 14px;border-radius:2px;background:rgba(95,221,138,0.15);border:1px solid rgba(95,221,138,0.4);color:var(--green);'
+          : 'font-size:0.72rem;letter-spacing:2px;padding:6px 14px;border-radius:2px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);';
+      }
+      if (info) {
+        info.innerHTML = (cfg.subtitle ? '<b>Subtítulo:</b> ' + cfg.subtitle + '<br>' : '') +
+          (cfg.datetime ? '<b>Fecha/Hora:</b> ' + new Date(cfg.datetime).toLocaleString('es-VE', {dateStyle:'full', timeStyle:'short'}) : '');
+      }
+
+      // Llenar formulario
+      if (cfg.subtitle) document.getElementById('sp-subtitle-inp').value = cfg.subtitle;
+      setSplashTimer(cfg.showTimer !== false);
+      if (cfg.datetime) {
+        var dt = new Date(cfg.datetime);
+        document.getElementById('sp-date-inp').value = dt.toISOString().slice(0,10);
+        document.getElementById('sp-time-inp').value = dt.toTimeString().slice(0,5);
+      }
+
+      updateSplashPreview(cfg);
+    });
+  }
+
+  function updateSplashToggle(isActive) {
+    var on  = document.getElementById('sp-toggle-on');
+    var off = document.getElementById('sp-toggle-off');
+    if (!on || !off) return;
+    on.style.cssText  = isActive ? 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:var(--yellow);color:var(--black);' : 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);';
+    off.style.cssText = !isActive ? 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:var(--yellow);color:var(--black);' : 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);';
+  }
+
+  function setSplashActive(val) {
+    window._dbSet(window._dbRef(window._db, 'countdown_splash/active'), val)
+      .then(function() { toast(val ? '✅ Splash activado' : '⏸ Splash desactivado'); loadSplash(); })
+      .catch(function() { toast('Error al actualizar', true); });
+  }
+
+  function updateSplashPreview(cfg) {
+    if (_spPreviewInterval) clearInterval(_spPreviewInterval);
+    var subEl = document.getElementById('spp-subtitle');
+    if (subEl && cfg && cfg.subtitle) subEl.textContent = cfg.subtitle;
+
+    var target = cfg && cfg.datetime ? new Date(cfg.datetime) : null;
+    if (!target) return;
+
+    var pad = function(n) { return String(n).padStart(2,'0'); };
+    function tick() {
+      var diff = target - new Date();
+      if (diff < 0) diff = 0;
+      var d = document.getElementById('spp-days');
+      var h = document.getElementById('spp-hours');
+      var m = document.getElementById('spp-mins');
+      var s = document.getElementById('spp-secs');
+      if (d) d.textContent = pad(Math.floor(diff/(1000*60*60*24)));
+      if (h) h.textContent = pad(Math.floor((diff%(1000*60*60*24))/(1000*60*60)));
+      if (m) m.textContent = pad(Math.floor((diff%(1000*60*60))/(1000*60)));
+      if (s) s.textContent = pad(Math.floor((diff%(1000*60))/1000));
+    }
+    tick();
+    _spPreviewInterval = setInterval(tick, 1000);
+  }
+
+  function setSplashTimer(val) {
+    var on  = document.getElementById('sp-timer-on');
+    var off = document.getElementById('sp-timer-off');
+    var fields = document.getElementById('sp-timer-fields');
+    if (on)  { on.dataset.active = val ? '1' : '0'; on.style.cssText  = val  ? 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:var(--yellow);color:var(--black);' : 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);'; }
+    if (off) { off.style.cssText = !val ? 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:var(--yellow);color:var(--black);' : 'font-family:"Bebas Neue",sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);'; }
+    if (fields) fields.style.display = val ? '' : 'none';
+  }
+
+  function saveSplash() {
+    var showTimer = (document.getElementById('sp-timer-on') && document.getElementById('sp-timer-on').dataset.active === '1') || false;
+    var dateVal = document.getElementById('sp-date-inp').value;
+    var timeVal = document.getElementById('sp-time-inp').value || '20:00';
+    var subtitle = document.getElementById('sp-subtitle-inp').value.trim();
+
+    if (showTimer && !dateVal) { toast('Elige una fecha para el timer', true); return; }
+
+    var cfg = {
+      active:    true,
+      showTimer: showTimer,
+      subtitle:  subtitle || 'Algo grande se acerca',
+      datetime:  showTimer ? (dateVal + 'T' + timeVal) : null
+    };
+
+    window._dbSet(window._dbRef(window._db, 'countdown_splash'), cfg)
+      .then(function() { toast('✅ Splash guardado y publicado'); loadSplash(); })
+      .catch(function() { toast('Error al guardar', true); });
+  }
+
+  function deleteSplash() {
+    if (!confirm('¿Desactivar la pantalla Próximamente?')) return;
+    window._dbSet(window._dbRef(window._db, 'countdown_splash'), { active: false })
+      .then(function() { toast('Splash desactivado'); loadSplash(); })
+      .catch(function() { toast('Error', true); });
+  }
+
+  // Live preview mientras el usuario escribe
+  function bindSplashPreviewListeners() {
+    ['sp-subtitle-inp', 'sp-date-inp', 'sp-time-inp'].forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function() {
+        var dateVal = document.getElementById('sp-date-inp').value;
+        var timeVal = document.getElementById('sp-time-inp').value || '20:00';
+        updateSplashPreview({
+          subtitle: document.getElementById('sp-subtitle-inp').value,
+          datetime: dateVal ? dateVal + 'T' + timeVal : null
+        });
+      });
+    });
+  }
+;
+
+  // Exponer funciones del splash al scope global (necesario en type="module")
+  window.setSplashActive   = setSplashActive;
+  window.setSplashTimer    = setSplashTimer;
+  window.saveSplash        = saveSplash;
+  window.deleteSplash      = deleteSplash;
+  window.loadSplash        = loadSplash;
+  window.bindSplashPreviewListeners = bindSplashPreviewListeners;
+</script>
+
+<style>
+  :root {
+    --black: #111110; --dark: #1a1a18; --metal: #222220;
+    --yellow: #E8A820; --cream: #F5EDD6; --muted: #888880;
+    --green: #5fdd8a; --red: #ff6b6b;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background: var(--black); color: var(--cream); font-family: "DM Sans", sans-serif; min-height: 100vh; }
+
+  /* LOGIN */
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: var(--black);
+  }
+  .login-box {
+    background: var(--dark); border: 1px solid rgba(232,168,32,0.3);
+    padding: 56px 48px; width: 100%; max-width: 420px; text-align: center;
+  }
+  .login-box h1 { font-family: "Bebas Neue", sans-serif; font-size: 2.2rem; letter-spacing: 6px; color: var(--yellow); margin-bottom: 8px; }
+  .login-box p { font-size: 0.78rem; letter-spacing: 2px; color: var(--muted); margin-bottom: 24px; text-transform: uppercase; }
+  .login-box .login-input { margin-bottom: 12px; }
+  .login-input {
+    width: 100%; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--cream); padding: 14px 18px; font-size: 1rem; font-family: "DM Sans", sans-serif;
+    outline: none; margin-bottom: 16px; letter-spacing: 4px; text-align: center;
+  }
+  .login-btn {
+    width: 100%; background: var(--yellow); color: var(--black);
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 4px; font-size: 1.1rem;
+    padding: 16px; border: none; cursor: pointer; transition: all 0.2s;
+  }
+  .login-btn:hover { background: #F5B832; }
+  .login-error { color: var(--red); font-size: 0.82rem; margin-top: 12px; display: none; }
+
+  /* ADMIN PANEL */
+  #admin-panel { display: none; }
+  .admin-header {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(17,17,16,0.97); border-bottom: 1px solid rgba(232,168,32,0.25);
+    backdrop-filter: blur(10px); padding: 0 48px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .admin-logo { font-family: "Bebas Neue", sans-serif; font-size: 1.4rem; letter-spacing: 5px; color: var(--yellow); padding: 18px 0; }
+  .admin-nav { display: flex; gap: 4px; }
+  .admin-tab {
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 3px; font-size: 0.85rem;
+    padding: 18px 20px; color: rgba(245,237,214,0.45); border: none; background: none;
+    cursor: pointer; border-bottom: 2px solid transparent; transition: all 0.2s;
+  }
+  .admin-tab:hover { color: var(--cream); }
+  .admin-tab.active { color: var(--yellow); border-bottom-color: var(--yellow); }
+  .logout-btn {
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 2px; font-size: 0.8rem;
+    padding: 8px 18px; background: rgba(255,59,59,0.15); border: 1px solid rgba(255,59,59,0.3);
+    color: var(--red); cursor: pointer; transition: all 0.2s;
+  }
+  .logout-btn:hover { background: rgba(255,59,59,0.3); }
+
+  /* CONTENT */
+  .admin-content { max-width: 1100px; margin: 0 auto; padding: 48px; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+  .panel-title { font-family: "Bebas Neue", sans-serif; font-size: 2.2rem; letter-spacing: 4px; color: #fff; margin-bottom: 8px; }
+  .panel-subtitle { font-size: 0.8rem; color: var(--muted); letter-spacing: 1px; margin-bottom: 40px; }
+
+  /* FORM ELEMENTS */
+  .form-section { background: var(--dark); border: 1px solid rgba(255,255,255,0.06); padding: 36px; margin-bottom: 3px; }
+  .form-section-title { font-family: "Bebas Neue", sans-serif; font-size: 1.1rem; letter-spacing: 3px; color: var(--yellow); margin-bottom: 24px; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .form-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; }
+  .form-group { display: flex; flex-direction: column; gap: 8px; }
+  .form-group.full { grid-column: 1 / -1; }
+  label { font-size: 0.6rem; letter-spacing: 3px; text-transform: uppercase; color: var(--muted); }
+  input[type=text], input[type=url], input[type=number], select, textarea {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    color: var(--cream); padding: 12px 16px; font-family: "DM Sans", sans-serif;
+    font-size: 0.9rem; outline: none; transition: border-color 0.2s; width: 100%;
+  }
+  input:focus, select:focus, textarea:focus { border-color: rgba(232,168,32,0.5); }
+  select { background: var(--metal); }
+  textarea { resize: vertical; min-height: 80px; }
+
+  /* BUTTONS */
+  .btn-add {
+    background: var(--yellow); color: var(--black);
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 3px; font-size: 0.95rem;
+    padding: 14px 32px; border: none; cursor: pointer; transition: all 0.2s; margin-top: 20px;
+  }
+  .btn-add:hover { background: #F5B832; transform: translateY(-1px); }
+  .btn-save {
+    background: var(--green); color: var(--black);
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 3px; font-size: 0.95rem;
+    padding: 14px 32px; border: none; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-save:hover { opacity: 0.85; }
+  .btn-delete {
+    background: rgba(255,59,59,0.15); border: 1px solid rgba(255,59,59,0.3);
+    color: var(--red); font-size: 0.75rem; padding: 6px 14px; cursor: pointer;
+    font-family: "DM Sans", sans-serif; transition: all 0.2s;
+  }
+  .btn-delete:hover { background: rgba(255,59,59,0.3); }
+
+  /* ITEMS LIST */
+  .items-list { margin-top: 32px; }
+  .item-row {
+    background: var(--metal); border: 1px solid rgba(255,255,255,0.04);
+    padding: 20px 24px; margin-bottom: 3px;
+    display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  .item-info { flex: 1; }
+  .item-name { font-family: "Bebas Neue", sans-serif; font-size: 1.1rem; letter-spacing: 2px; color: #fff; }
+  .item-meta { font-size: 0.78rem; color: var(--muted); margin-top: 4px; }
+  .item-price { font-family: "Bebas Neue", sans-serif; font-size: 1.3rem; color: var(--yellow); }
+
+  /* GALLERY */
+  .gallery-admin-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 12px; margin-top: 24px; }
+  .gallery-admin-item { position: relative; aspect-ratio: 1; overflow: hidden; background: var(--metal); border: 1px solid rgba(255,255,255,0.06); }
+  .gallery-admin-item img { width: 100%; height: 100%; object-fit: cover; }
+  .gallery-admin-item .del-overlay {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.6);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s; cursor: pointer;
+  }
+  .gallery-admin-item:hover .del-overlay { opacity: 1; }
+  .del-overlay span { color: var(--red); font-size: 1.5rem; }
+
+  /* TOAST */
+  #toast {
+    position: fixed; bottom: 32px; left: 50%; transform: translateX(-50%) translateY(80px);
+    background: var(--green); color: var(--black);
+    font-family: "Bebas Neue", sans-serif; letter-spacing: 3px; font-size: 0.95rem;
+    padding: 14px 32px; z-index: 9999; transition: transform 0.3s ease; pointer-events: none;
+  }
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.error { background: var(--red); color: #fff; }
+
+  /* STATUS */
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 8px; }
+  .status-ok { background: var(--green); }
+  .status-warn { background: var(--yellow); }
+
+  @media (max-width: 768px) {
+    .admin-header { padding: 0 20px; }
+    .admin-content { padding: 28px 20px; }
+    .form-grid, .form-grid-3 { grid-template-columns: 1fr; }
+    .admin-nav { overflow-x: auto; }
+    .admin-tab { padding: 16px 14px; font-size: 0.78rem; }
+  }
+  #nl-panel-evento, #nl-panel-personal { flex-direction: column; gap: 10px; }
+</style>
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════════ LOGIN ═══ -->
+<div id="login-screen">
+  <div class="login-box">
+    <h1>PIZPA</h1>
+    <p>Panel de Administración</p>
+    <input class="login-input" type="text" id="user-input" placeholder="Usuario" autocomplete="username" onkeydown="if(event.key==='Enter') doLogin()">
+    <input class="login-input" type="password" id="pwd-input" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter') doLogin()">
+    <button class="login-btn" onclick="doLogin()">ENTRAR</button>
+    <div class="login-error" id="login-error">Usuario o contraseña incorrectos</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════ ADMIN ═══ -->
+<div id="admin-panel">
+
+  <!-- Header -->
+  <div class="admin-header">
+    <div class="admin-logo">PIZPA ADMIN</div>
+    <nav class="admin-nav">
+      <button class="admin-tab active" onclick="switchPanel('shows')">🎭 Shows</button>
+      <button class="admin-tab" onclick="switchPanel('menu')">🍕 Menú</button>
+      <button class="admin-tab" onclick="switchPanel('merch')">🛍 Merch</button>
+      <button class="admin-tab" onclick="switchPanel('galeria')">📸 Galería</button>
+      <button class="admin-tab" onclick="switchPanel('resenas')">⭐ Reseñas</button>
+      <button class="admin-tab" onclick="switchPanel('countdown')">⏱ Countdown</button>
+      <button class="admin-tab" onclick="switchPanel('splash')">🔒 Próximamente</button>
+      <button class="admin-tab" onclick="switchPanel('precios')">💰 Precios</button>
+      <button class="admin-tab" onclick="switchPanel('comunidad')">💬 Comunidad</button>
+      <button class="admin-tab" onclick="switchPanel('newsletter')">📧 Newsletter</button>
+      <button class="admin-tab" onclick="switchPanel('vibras')">✨ Vibras</button>
+      <a href="comedy-buddy.html" target="_blank" class="admin-tab" style="text-decoration:none;background:rgba(232,168,32,0.12);border:1px solid rgba(232,168,32,0.35);color:#E8A820;">🎤 Comedy Buddy</a>
+      
+    </nav>
+    <button class="logout-btn" onclick="doLogout()">SALIR</button>
+  </div>
+
+  <div class="admin-content">
+
+    <!-- ════════ SHOWS ════════ -->
+    <div class="panel active" id="panel-shows">
+      <div class="panel-title">Shows & Cartelera</div>
+      <div class="panel-subtitle">Agrega, edita o elimina shows. Los cambios se ven en la web al instante.</div>
+
+      <!-- Agregar show -->
+      <div class="form-section">
+        <div class="form-section-title">➕ Agregar Show</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre del Comediante / Show</label>
+            <input type="text" id="s-name" placeholder="Ej: Carluis en Vivo">
+          </div>
+          <div class="form-group">
+            <label>Descripción</label>
+            <input type="text" id="s-desc" placeholder="Descripción corta del show">
+          </div>
+          <div class="form-group">
+            <label>Fecha del show</label>
+            <input type="date" id="s-date">
+          </div>
+          <div class="form-group">
+            <label>Hora</label>
+            <input type="time" id="s-time" value="20:00">
+          </div>
+          <div class="form-group">
+            <label>Tipo de entrada</label>
+            <select id="s-type">
+              <option value="cover">Con Cover (Ticketplate)</option>
+              <option value="free">Entrada Libre</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Categoría</label>
+            <select id="s-week">
+              <option value="fijos">Show Fijo (semanal)</option>
+              <option value="rotativos">Martes & Miércoles (Rotativos)</option>
+              <option value="especial">Show Especial</option>
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>Link Ticketplate (si aplica)</label>
+            <input type="url" id="s-link" placeholder="https://ticketplate.com/...">
+          </div>
+          <div class="form-group full">
+            <label>URL del Flyer (imagen del show) — sube la foto a <a href="https://imgbb.com" target="_blank" style="color:var(--yellow);">imgbb.com</a> y pega el link aquí</label>
+            <input type="url" id="s-flyer" placeholder="https://i.ibb.co/... (opcional)">
+          </div>
+        </div>
+        <button class="btn-add" onclick="addShow()">+ AGREGAR SHOW</button>
+      </div>
+
+      <!-- Lista shows -->
+      <div class="items-list" id="shows-list">
+        <div style="color:var(--muted); font-size:0.85rem;">Cargando shows...</div>
+      </div>
+
+    </div>
+
+    <!-- ════════ MENÚ ════════ -->
+    <div class="panel" id="panel-menu">
+      <div class="panel-title">Menú</div>
+      <div class="panel-subtitle">Agrega o elimina items del menú de comida y bebidas.</div>
+
+      <!-- Carga inicial del menú -->
+      <div class="form-section" style="margin-bottom:3px; background:rgba(232,168,32,0.05); border-color:rgba(232,168,32,0.2);">
+        <div class="form-section-title">🚀 Carga Inicial del Menú</div>
+        <p style="font-size:0.82rem; color:var(--muted); margin-bottom:16px; line-height:1.7;">Carga todos los platos y bebidas del menú de Pizpa de una sola vez. <strong style="color:var(--cream);">Úsalo solo la primera vez</strong> — si ya tienes items guardados, este botón agrega duplicados.</p>
+        <button class="btn-add" onclick="seedMenu()" style="background:rgba(232,168,32,0.85);">⚡ CARGAR MENÚ COMPLETO</button>
+      </div>
+
+      <div class="form-section">
+        <div class="form-section-title">➕ Agregar Item al Menú</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre del plato/bebida</label>
+            <input type="text" id="m-name" placeholder="Ej: Pizza Pepperoni">
+          </div>
+          <div class="form-group">
+            <label>Categoría</label>
+            <select id="m-cat">
+              <optgroup label="🍕 Comida">
+                <option value="Entradas">Entradas</option>
+                <option value="Ensaladas">Ensaladas</option>
+                <option value="Pizzas">Pizzas</option>
+                <option value="Burgers">Burgers</option>
+                <option value="Postres">Postres</option>
+              </optgroup>
+              <optgroup label="🍹 Bebidas">
+                <option value="Signatures">✨ Signatures</option>
+                <option value="Cocteles Clásicos">Cocteles Clásicos</option>
+                <option value="Licores">Licores</option>
+                <option value="Vinos">Vinos</option>
+                <option value="Cervezas">Cervezas</option>
+                <option value="Sin Alcohol">Sin Alcohol</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Descripción (opcional)</label>
+            <input type="text" id="m-desc" placeholder="Ingredientes, variantes...">
+          </div>
+          <div class="form-group">
+            <label>Precio (Ref.)</label>
+            <input type="number" id="m-price" placeholder="10" min="0" step="0.5">
+          </div>
+          <div class="form-group">
+            <label>Tag especial (opcional)</label>
+            <select id="m-tag">
+              <option value="">Ninguno</option>
+              <option value="Firma">⭐ Firma</option>
+              <option value="Nuevo">🆕 Nuevo</option>
+              <option value="Popular">🔥 Popular</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn-add" onclick="addMenuItem()">+ AGREGAR AL MENÚ</button>
+      </div>
+
+      <!-- Lista menú -->
+      <div class="items-list" id="menu-list">
+        <div style="color:var(--muted); font-size:0.85rem;">Cargando menú...</div>
+      </div>
+    </div>
+
+    <!-- ════════ MERCH ════════ -->
+    <div class="panel" id="panel-merch">
+      <div class="panel-title">Merch</div>
+      <div class="panel-subtitle">Agrega productos, sube fotos desde imgbb.com y edita precios al instante.</div>
+
+      <!-- Agregar / Editar producto -->
+      <div class="form-section">
+        <div class="form-section-title">➕ Agregar Producto</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Nombre del producto</label>
+            <input type="text" id="mc-name" placeholder="Ej: Camiseta Pizpa">
+          </div>
+          <div class="form-group">
+            <label>Precio ($)</label>
+            <input type="number" id="mc-price" placeholder="15" min="0" step="0.5">
+          </div>
+          <div class="form-group full">
+            <label>Descripción</label>
+            <input type="text" id="mc-desc" placeholder="Ej: 100% algodón · Unisex">
+          </div>
+          <div class="form-group">
+            <label>Tallas disponibles (separadas por coma)</label>
+            <input type="text" id="mc-sizes" placeholder="S, M, L, XL, XXL  ó  Única">
+          </div>
+          <div class="form-group">
+            <label>Emoji (opcional)</label>
+            <input type="text" id="mc-emoji" placeholder="👕" maxlength="4">
+          </div>
+          <div class="form-group full">
+            <label>Foto principal — URL directa desde imgbb.com</label>
+            <input type="url" id="mc-foto1" placeholder="https://i.ibb.co/xxx/foto1.jpg" oninput="previewMerchPhoto(this,'prev1')">
+            <img id="prev1" src="" style="max-width:160px; max-height:120px; object-fit:cover; margin-top:8px; display:none; border:1px solid rgba(255,255,255,0.1);">
+          </div>
+          <div class="form-group full">
+            <label>Foto secundaria (hover) — opcional</label>
+            <input type="url" id="mc-foto2" placeholder="https://i.ibb.co/xxx/foto2.jpg" oninput="previewMerchPhoto(this,'prev2')">
+            <img id="prev2" src="" style="max-width:160px; max-height:120px; object-fit:cover; margin-top:8px; display:none; border:1px solid rgba(255,255,255,0.1);">
+          </div>
+        </div>
+        <button class="btn-add" onclick="addMerchItem()">+ AGREGAR PRODUCTO</button>
+      </div>
+
+      <!-- Lista productos -->
+      <div class="items-list" id="merch-admin-list">
+        <div style="color:var(--muted); font-size:0.85rem;">Cargando merch...</div>
+      </div>
+    </div>
+
+    <!-- ════════ GALERÍA ════════ -->
+    <div class="panel" id="panel-galeria">
+      <div class="panel-title">Galería de Fotos</div>
+      <div class="panel-subtitle">Agrega fotos con un link directo de imagen (desde Cloudinary, imgbb.com, etc.).</div>
+
+      <div class="form-section">
+        <div class="form-section-title">📸 Cómo subir fotos</div>
+        <p style="font-size:0.85rem; color:var(--muted); line-height:1.8; margin-bottom:16px;">
+          1. Ve a <strong style="color:var(--cream)">imgbb.com</strong> (gratis) → sube tu foto → copia el link "Direct link" (termina en .jpg o .png)<br>
+          2. Pega ese link abajo y agrega la foto. Aparecerá en la galería de la web al instante.
+        </p>
+        <a href="https://imgbb.com" target="_blank" style="color:var(--yellow); font-size:0.82rem; letter-spacing:2px;">↗ Abrir imgbb.com</a>
+      </div>
+
+      <div class="form-section" style="margin-top:3px;">
+        <div class="form-section-title">➕ Agregar Foto</div>
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>URL directa de la imagen</label>
+            <input type="url" id="g-url" placeholder="https://i.ibb.co/xxx/mi-foto.jpg">
+          </div>
+          <div class="form-group">
+            <label>Título / Caption</label>
+            <input type="text" id="g-caption" placeholder="Ej: Noche de Carluis">
+          </div>
+          <div class="form-group">
+            <label>Sección</label>
+            <select id="g-section">
+              <option value="recuerdos">📸 Recuerdos (noches y shows)</option>
+              <option value="lugar">📍 El Lugar (espacio físico)</option>
+            </select>
+          </div>
+        </div>
+        <div style="margin-top:20px;">
+          <label style="display:block; margin-bottom:8px;">Preview</label>
+          <img id="g-preview" src="" alt="" style="max-width:200px; max-height:150px; object-fit:cover; display:none; border:1px solid rgba(255,255,255,0.1);">
+        </div>
+        <button class="btn-add" onclick="addPhoto()">+ AGREGAR FOTO</button>
+      </div>
+
+      <!-- Gallery grid -->
+      <div style="margin-top:32px;">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:3px; color:var(--yellow); margin-bottom:16px;">📸 RECUERDOS</div>
+        <div class="gallery-admin-grid" id="gallery-recuerdos"></div>
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:3px; color:var(--yellow); margin:32px 0 16px;">📍 EL LUGAR</div>
+        <div class="gallery-admin-grid" id="gallery-lugar"></div>
+      </div>
+    </div>
+
+    <!-- ════════ RESEÑAS ════════ -->
+    <div class="panel" id="panel-resenas">
+      <div class="panel-title">Reseñas de Shows</div>
+      <div class="panel-subtitle">Modera las reseñas que la gente publica en la web. Puedes ocultarlas o eliminarlas.</div>
+
+      <div class="form-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+          <div class="form-section-title" style="margin-bottom:0;">📋 Reseñas recibidas</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <label style="font-size:0.65rem; letter-spacing:2px; color:var(--muted);">FILTRAR:</label>
+            <select id="review-filter" onchange="loadReviews()" style="background:var(--metal); border:1px solid rgba(255,255,255,0.1); color:var(--cream); padding:8px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none;">
+              <option value="all">Todas</option>
+              <option value="visible">Visibles</option>
+              <option value="hidden">Ocultas</option>
+            </select>
+          </div>
+        </div>
+        <div id="reviews-admin-list">
+          <div style="color:var(--muted); font-size:0.85rem;">Cargando reseñas...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ COUNTDOWN ════════ -->
+    <div class="panel" id="panel-countdown">
+      <div class="panel-title">Banner Countdown</div>
+      <div class="panel-subtitle">Configura el banner de cuenta regresiva que aparece en la parte superior de la web.</div>
+
+      <!-- Status actual -->
+      <div class="form-section" style="margin-bottom:3px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+          <div class="form-section-title" style="margin-bottom:0;">⚡ Estado Actual</div>
+          <div id="cd-status-badge" style="font-size:0.72rem; letter-spacing:2px; padding:6px 14px; border-radius:2px; background:rgba(95,221,138,0.15); border:1px solid rgba(95,221,138,0.4); color:var(--green);">ACTIVO</div>
+        </div>
+        <div id="cd-current-info" style="font-size:0.85rem; color:var(--muted); line-height:2;">Cargando...</div>
+      </div>
+
+      <!-- Formulario editar / crear -->
+      <div class="form-section" style="margin-bottom:3px;">
+        <div class="form-section-title">✏️ Configurar Countdown</div>
+
+        <!-- Toggle activo -->
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px; padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);">
+          <label style="font-size:0.65rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin:0;">Mostrar banner en la web</label>
+          <div style="display:flex; gap:8px;">
+            <button id="cd-toggle-on"  onclick="setCountdownActive(true)"  style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">ACTIVO</button>
+            <button id="cd-toggle-off" onclick="setCountdownActive(false)" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">OCULTO</button>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Título del banner (texto grande)</label>
+            <input type="text" id="cd-title-inp" placeholder="Ej: 🎤 EL HOGAR DE LA COMEDIA VENEZOLANA VUELVE">
+          </div>
+          <div class="form-group full">
+            <label>Subtítulo (texto pequeño debajo)</label>
+            <input type="text" id="cd-subtitle-inp" placeholder="Ej: Domingo 15 de Marzo · C.C. Yamin Center">
+          </div>
+          <div class="form-group">
+            <label>Fecha del evento</label>
+            <input type="date" id="cd-date-inp">
+          </div>
+          <div class="form-group">
+            <label>Hora del evento</label>
+            <input type="time" id="cd-time-inp" value="19:00">
+          </div>
+          <div class="form-group full">
+            <label>Mensaje cuando expira el tiempo (si la fecha ya pasó)</label>
+            <input type="text" id="cd-expired-inp" placeholder="Ej: 🎉 ¡HOY ES EL DÍA! BIENVENIDOS DE VUELTA A PIZPA">
+          </div>
+        </div>
+
+        <!-- Preview en vivo -->
+        <div style="margin-top:28px;">
+          <div style="font-size:0.6rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:12px;">Preview del banner</div>
+          <div id="cd-preview" style="background:var(--yellow); padding:16px 32px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:16px; border-radius:2px;">
+            <div>
+              <div id="cdp-title" style="font-family:'Bebas Neue',sans-serif; font-size:1.2rem; color:var(--black); letter-spacing:3px; line-height:1.2;">🎤 Título del evento</div>
+              <div id="cdp-subtitle" style="font-size:0.78rem; color:rgba(0,0,0,0.6); letter-spacing:2px; margin-top:4px; text-transform:uppercase;">Subtítulo · Lugar</div>
+            </div>
+            <div style="display:flex; gap:3px; align-items:center;">
+              <div style="background:var(--black); padding:6px 12px; text-align:center; min-width:46px;">
+                <div id="cdp-days" style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--yellow); line-height:1;">00</div>
+                <div style="font-size:0.5rem; letter-spacing:2px; color:rgba(255,255,255,0.5);">DÍAS</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.2rem; color:var(--black);">:</div>
+              <div style="background:var(--black); padding:6px 12px; text-align:center; min-width:46px;">
+                <div id="cdp-hours" style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--yellow); line-height:1;">00</div>
+                <div style="font-size:0.5rem; letter-spacing:2px; color:rgba(255,255,255,0.5);">HRS</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.2rem; color:var(--black);">:</div>
+              <div style="background:var(--black); padding:6px 12px; text-align:center; min-width:46px;">
+                <div id="cdp-mins" style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--yellow); line-height:1;">00</div>
+                <div style="font-size:0.5rem; letter-spacing:2px; color:rgba(255,255,255,0.5);">MIN</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.2rem; color:var(--black);">:</div>
+              <div style="background:var(--black); padding:6px 12px; text-align:center; min-width:46px;">
+                <div id="cdp-secs" style="font-family:'Bebas Neue',sans-serif; font-size:1.4rem; color:var(--yellow); line-height:1;">00</div>
+                <div style="font-size:0.5rem; letter-spacing:2px; color:rgba(255,255,255,0.5);">SEG</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
+          <button class="btn-save" onclick="saveCountdown()">💾 GUARDAR Y PUBLICAR</button>
+          <button onclick="deleteCountdown()" style="background:rgba(255,59,59,0.15);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:0.9rem;padding:14px 24px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,59,59,0.3)'" onmouseout="this.style.background='rgba(255,59,59,0.15)'">🗑 ELIMINAR BANNER</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ════════ PRECIOS ════════ -->
+
+    <!-- ═══ PANEL: SPLASH PRÓXIMAMENTE ═══ -->
+    <div class="panel" id="panel-splash">
+      <div class="panel-title">🔒 Pantalla "Próximamente"</div>
+      <div class="panel-subtitle">Cubre toda la web con un overlay de cuenta regresiva. Ideal para anunciar la apertura o un evento especial.</div>
+
+      <!-- Status actual -->
+      <div class="form-section" style="margin-bottom:3px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:24px;">
+          <div class="form-section-title" style="margin-bottom:0;">⚡ Estado Actual</div>
+          <div id="sp-status-badge" style="font-size:0.72rem; letter-spacing:2px; padding:6px 14px; border-radius:2px; background:rgba(95,221,138,0.15); border:1px solid rgba(95,221,138,0.4); color:var(--green);">CARGANDO...</div>
+        </div>
+        <div id="sp-current-info" style="font-size:0.85rem; color:var(--muted); line-height:2;">Cargando...</div>
+      </div>
+
+      <!-- Formulario -->
+      <div class="form-section" style="margin-bottom:3px;">
+        <div class="form-section-title">✏️ Configurar Pantalla</div>
+
+        <!-- Toggle activo -->
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px; padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);">
+          <label style="font-size:0.65rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin:0;">Mostrar pantalla en la web</label>
+          <div style="display:flex; gap:8px;">
+            <button id="sp-toggle-on"  onclick="setSplashActive(true)"  style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">ACTIVO</button>
+            <button id="sp-toggle-off" onclick="setSplashActive(false)" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">OCULTO</button>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>Subtítulo bajo "Próximamente"</label>
+            <input type="text" id="sp-subtitle-inp" placeholder="Ej: Jueves 19 de Marzo · Pizpa Comedy Club">
+          </div>
+        </div>
+
+        <!-- Toggle mostrar/ocultar timer -->
+        <div style="display:flex; align-items:center; gap:16px; margin-bottom:24px; padding:16px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.07);">
+          <label style="font-size:0.65rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin:0;">Mostrar cuenta regresiva</label>
+          <div style="display:flex; gap:8px;">
+            <button id="sp-timer-on"  onclick="setSplashTimer(true)"  style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">CON TIMER</button>
+            <button id="sp-timer-off" onclick="setSplashTimer(false)" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.8rem;padding:8px 18px;border:none;cursor:pointer;transition:all 0.2s;">SOLO TEXTO</button>
+          </div>
+        </div>
+
+        <div id="sp-timer-fields" class="form-grid">
+          <div class="form-group">
+            <label>Fecha</label>
+            <input type="date" id="sp-date-inp">
+          </div>
+          <div class="form-group">
+            <label>Hora</label>
+            <input type="time" id="sp-time-inp" value="20:00">
+          </div>
+        </div>
+
+        <!-- Preview -->
+        <div style="margin-top:28px;">
+          <div style="font-size:0.6rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:12px;">Preview del overlay</div>
+          <div style="background:rgba(17,17,16,0.92); border:1px solid rgba(255,255,255,0.08); padding:32px 24px; display:flex; flex-direction:column; align-items:center; gap:16px; border-radius:2px;">
+            <div style="font-family:'Bebas Neue',sans-serif; font-size:2.2rem; letter-spacing:8px; color:var(--yellow);">PRÓXIMAMENTE</div>
+            <div id="spp-subtitle" style="font-size:0.72rem; letter-spacing:3px; text-transform:uppercase; color:rgba(255,255,255,0.45);">Algo grande se acerca</div>
+            <div style="display:flex; gap:6px; align-items:center;">
+              <div style="background:var(--yellow); padding:10px 16px; min-width:58px; text-align:center;">
+                <div id="spp-days" style="font-family:'Bebas Neue',sans-serif; font-size:1.8rem; color:var(--black); line-height:1;">00</div>
+                <div style="font-size:0.48rem; letter-spacing:2px; color:rgba(0,0,0,0.5);">DÍAS</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.5rem; color:var(--yellow);">:</div>
+              <div style="background:var(--yellow); padding:10px 16px; min-width:58px; text-align:center;">
+                <div id="spp-hours" style="font-family:'Bebas Neue',sans-serif; font-size:1.8rem; color:var(--black); line-height:1;">00</div>
+                <div style="font-size:0.48rem; letter-spacing:2px; color:rgba(0,0,0,0.5);">HRS</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.5rem; color:var(--yellow);">:</div>
+              <div style="background:var(--yellow); padding:10px 16px; min-width:58px; text-align:center;">
+                <div id="spp-mins" style="font-family:'Bebas Neue',sans-serif; font-size:1.8rem; color:var(--black); line-height:1;">00</div>
+                <div style="font-size:0.48rem; letter-spacing:2px; color:rgba(0,0,0,0.5);">MIN</div>
+              </div>
+              <div style="font-family:'Bebas Neue',sans-serif; font-size:1.5rem; color:var(--yellow);">:</div>
+              <div style="background:var(--yellow); padding:10px 16px; min-width:58px; text-align:center;">
+                <div id="spp-secs" style="font-family:'Bebas Neue',sans-serif; font-size:1.8rem; color:var(--black); line-height:1;">00</div>
+                <div style="font-size:0.48rem; letter-spacing:2px; color:rgba(0,0,0,0.5);">SEG</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:12px; margin-top:24px; flex-wrap:wrap;">
+          <button class="btn-save" onclick="saveSplash()">💾 GUARDAR Y PUBLICAR</button>
+          <button onclick="deleteSplash()" style="background:rgba(255,59,59,0.15);border:1px solid rgba(255,59,59,0.3);color:var(--red);font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:0.9rem;padding:14px 24px;cursor:pointer;transition:all 0.2s;" onmouseover="this.style.background='rgba(255,59,59,0.3)'" onmouseout="this.style.background='rgba(255,59,59,0.15)'">🗑 DESACTIVAR</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel" id="panel-precios">
+      <div class="panel-title">Precios del Menú</div>
+      <div class="panel-subtitle">Actualiza precios rápidamente. Se aplican en toda la web al guardar.</div>
+
+      <div class="form-section">
+        <div class="form-section-title">⚡ Actualización Masiva de Precios</div>
+        <p style="font-size:0.85rem; color:var(--muted); margin-bottom:24px; line-height:1.7;">
+          Acá puedes cambiar el precio de cualquier item del menú. Los cambios se guardan en Firebase y se ven en la web al instante.
+        </p>
+        <div id="prices-list" style="display:flex; flex-direction:column; gap:3px;">
+          <div style="color:var(--muted); font-size:0.85rem;">Cargando precios...</div>
+        </div>
+        <button class="btn-save" style="margin-top:24px;" onclick="saveAllPrices()">💾 GUARDAR TODOS LOS CAMBIOS</button>
+      </div>
+
+      <!-- ALITAS -->
+      <div class="form-section" style="margin-top:3px;">
+        <div class="form-section-title">🍗 Alitas — Precio Base y Multiplicadores</div>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:20px;line-height:1.7;">
+          Precio independiente para cada cantidad. Lo que pongas acá es exactamente lo que se cobra.
+        </p>
+        <div id="alitas-prices-list" style="display:flex;flex-direction:column;gap:6px;">
+          <div style="color:var(--muted);font-size:0.85rem;">Cargando...</div>
+        </div>
+        <button class="btn-save" style="margin-top:20px;" onclick="saveAlitasPrices()">💾 GUARDAR ALITAS</button>
+      </div>
+
+      <!-- BEBIDAS PRESENTACIONES -->
+      <div class="form-section" style="margin-top:3px;">
+        <div class="form-section-title">🥤 Bebidas Sin Alcohol — Precios Base</div>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:20px;line-height:1.7;">
+          Precio individual para cada presentación. Lo que pongas acá es exactamente lo que se cobra.
+        </p>
+        <div id="bebidas-prices-list" style="display:flex;flex-direction:column;gap:6px;">
+          <div style="color:var(--muted);font-size:0.85rem;">Cargando...</div>
+        </div>
+        <button class="btn-save" style="margin-top:20px;" onclick="saveBebidasPrices()">💾 GUARDAR BEBIDAS</button>
+      </div>
+
+      <!-- EXTRAS PIZZA -->
+      <div class="form-section" style="margin-top:3px;">
+        <div class="form-section-title">🍕 Extras de Pizza — Precio por Ingrediente</div>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:20px;line-height:1.7;">
+          Precio adicional por cada ingrediente extra. Deja en <strong style="color:var(--cream)">0</strong> para que aparezca como <em>gratis</em>.
+        </p>
+        <div id="extras-pizza-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px;">
+          <div style="color:var(--muted);font-size:0.85rem;">Cargando...</div>
+        </div>
+        <button class="btn-save" style="margin-top:20px;" onclick="saveExtrasPizza()">💾 GUARDAR EXTRAS</button>
+      </div>
+
+      <!-- Info moneda -->
+      <div class="form-section" style="margin-top:3px;">
+        <div class="form-section-title">💱 Nota de Precios</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Texto de precios (pie del menú)</label>
+            <input type="text" id="price-note" placeholder="Ej: Nuestros precios incluyen IVA">
+          </div>
+          <div class="form-group">
+            <label>Prefijo de moneda</label>
+            <input type="text" id="price-prefix" placeholder="Ref." value="Ref.">
+          </div>
+        </div>
+        <button class="btn-save" style="margin-top:20px;" onclick="savePriceConfig()">💾 GUARDAR CONFIGURACIÓN</button>
+      </div>
+    </div>
+
+
+    <!-- ════════ COMUNIDAD ════════ -->
+    <div class="panel" id="panel-comunidad">
+      <div class="panel-title">Comunidad</div>
+      <div class="panel-subtitle">Modera los likes y comentarios de la galería en tiempo real.</div>
+
+      <!-- Stats -->
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:3px;margin-bottom:3px;">
+        <div style="background:var(--surface);padding:20px;text-align:center;">
+          <div id="stat-likes" style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--yellow);">—</div>
+          <div style="font-size:0.72rem;letter-spacing:2px;color:var(--muted);margin-top:4px;">LIKES TOTALES</div>
+        </div>
+        <div style="background:var(--surface);padding:20px;text-align:center;">
+          <div id="stat-comments" style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--yellow);">—</div>
+          <div style="font-size:0.72rem;letter-spacing:2px;color:var(--muted);margin-top:4px;">COMENTARIOS</div>
+        </div>
+        <div style="background:var(--surface);padding:20px;text-align:center;">
+          <div id="stat-photos" style="font-family:'Bebas Neue',sans-serif;font-size:2.2rem;color:var(--yellow);">—</div>
+          <div style="font-size:0.72rem;letter-spacing:2px;color:var(--muted);margin-top:4px;">FOTOS CON ACTIVIDAD</div>
+        </div>
+      </div>
+
+      <!-- Filtros + lista -->
+      <div class="form-section" style="margin-top:3px;">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:20px;">
+          <div class="form-section-title" style="margin:0;">📋 Actividad por Foto</div>
+          <div style="margin-left:auto;display:flex;gap:4px;">
+            <button id="cf-all"      onclick="loadComunidad('all')"      style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.78rem;padding:7px 14px;border:none;cursor:pointer;background:var(--yellow);color:#000;border-radius:2px;">Todas</button>
+            <button id="cf-comments" onclick="loadComunidad('comments')" style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.78rem;padding:7px 14px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);border-radius:2px;">Con comentarios</button>
+            <button id="cf-likes"    onclick="loadComunidad('likes')"    style="font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.78rem;padding:7px 14px;border:none;cursor:pointer;background:rgba(255,255,255,0.07);color:var(--muted);border-radius:2px;">Con likes</button>
+          </div>
+        </div>
+        <div id="comunidad-list" style="display:flex;flex-direction:column;gap:3px;">
+          <div style="color:var(--muted);font-size:0.85rem;padding:20px 0;">Cargando actividad...</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ════════ NEWSLETTER ════════ -->
+    <div class="panel" id="panel-newsletter">
+      <div class="panel-title">Newsletter</div>
+      <div class="panel-subtitle">Gestiona suscriptores y envía newsletters directamente desde aquí. Los emails se envían automáticamente vía Resend.</div>
+
+      <!-- Cumpleañeros de hoy -->
+      <div id="bday-today-wrap" style="background:rgba(232,168,32,0.08);border:1px solid rgba(232,168,32,0.3);padding:16px 20px;margin-bottom:20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="font-family:'Bebas Neue',sans-serif;letter-spacing:3px;font-size:0.9rem;color:#E8A820;">🎂 CUMPLEAÑEROS DE HOY</div>
+          <button onclick="shareBirthdaysWhatsApp()" id="bday-wa-btn"
+            style="display:none;background:#25D366;color:#fff;border:none;font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.75rem;padding:6px 14px;cursor:pointer;">
+            📲 COMPARTIR EN WHATSAPP
+          </button>
+        </div>
+        <div id="bday-today-list" style="color:rgba(255,255,255,0.5);font-size:0.82rem;">Cargando...</div>
+      </div>
+
+      <!-- Stats -->
+      <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:3px; margin-bottom:24px;">
+        <div style="background:var(--card); border:1px solid rgba(255,255,255,0.05); padding:20px 24px;">
+          <div style="font-size:0.6rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Total suscriptores</div>
+          <div id="nl-total" style="font-family:'Bebas Neue',sans-serif; font-size:2.2rem; color:var(--yellow);">—</div>
+        </div>
+        <div style="background:var(--card); border:1px solid rgba(255,255,255,0.05); padding:20px 24px;">
+          <div style="font-size:0.6rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Activos</div>
+          <div id="nl-active" style="font-family:'Bebas Neue',sans-serif; font-size:2.2rem; color:#5fdd8a;">—</div>
+        </div>
+        <div style="background:var(--card); border:1px solid rgba(255,255,255,0.05); padding:20px 24px;">
+          <div style="font-size:0.6rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:6px;">Último suscrito</div>
+          <div id="nl-last" style="font-family:'Bebas Neue',sans-serif; font-size:1rem; color:#fff; margin-top:6px;">—</div>
+        </div>
+      </div>
+
+      <!-- Compositor de Newsletter -->
+      <div style="background:var(--card); border:1px solid rgba(255,255,255,0.05); padding:24px; margin-bottom:3px;">
+        <div style="font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:3px; color:var(--yellow); margin-bottom:16px;">✏ Componer Newsletter</div>
+
+        <!-- Selector de modo -->
+        <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:3px; margin-bottom:20px;">
+          <button id="nl-mode-agenda"   onclick="setNlMode('agenda')"   style="font-family:'Bebas Neue',sans-serif; letter-spacing:1px; font-size:0.72rem; padding:10px 6px; border:none; cursor:pointer; background:var(--yellow); color:#000; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;">📅 AGENDA SEMANAL</button>
+          <button id="nl-mode-evento"   onclick="setNlMode('evento')"   style="font-family:'Bebas Neue',sans-serif; letter-spacing:1px; font-size:0.72rem; padding:10px 6px; border:none; cursor:pointer; background:rgba(255,255,255,0.07); color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;">🎭 EVENTO ESPECIAL</button>
+          <button id="nl-mode-personal" onclick="setNlMode('personal')" style="font-family:'Bebas Neue',sans-serif; letter-spacing:1px; font-size:0.72rem; padding:10px 6px; border:none; cursor:pointer; background:rgba(255,255,255,0.07); color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:center;">💬 MENSAJE PERSONAL</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
+          <!-- Izquierda: formulario dinámico -->
+          <div style="display:flex; flex-direction:column; gap:10px;">
+
+            <!-- MODO AGENDA SEMANAL -->
+            <div id="nl-panel-agenda">
+              <div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin-bottom:12px; line-height:1.5;">Genera automáticamente el resumen de shows de la semana en curso (lunes a domingo) con sus links.</div>
+              <div style="display:flex; gap:8px; margin-bottom:10px;">
+                <div style="flex:1;">
+                  <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Semana del</label>
+                  <input id="nl-week-start" type="date" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+                </div>
+              </div>
+              <div id="nl-agenda-shows" style="display:flex; flex-direction:column; gap:6px; max-height:260px; overflow-y:auto;"></div>
+              <button onclick="loadAgendaShows()" style="width:100%; background:rgba(255,255,255,0.06); border:1px solid rgba(255,255,255,0.1); color:#fff; font-family:'Bebas Neue',sans-serif; letter-spacing:2px; font-size:0.75rem; padding:9px; cursor:pointer; margin-top:8px;">↺ Cargar Shows de la Semana</button>
+            </div>
+
+            <!-- MODO EVENTO ESPECIAL -->
+            <div id="nl-panel-evento" style="display:none;">
+              <div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin-bottom:4px; line-height:1.5;">Destaca un show específico con su descripción y link de compra/reserva.</div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Show</label>
+                <select id="nl-ev-show" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onchange="fillEventoFromShow()" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+                  <option value="">— Elige un show —</option>
+                </select>
+              </div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Fecha y hora</label>
+                <input id="nl-ev-date" type="text" placeholder="Ej: Viernes 14 de Febrero · 8:00pm"
+                  style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+              </div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Descripción corta</label>
+                <textarea id="nl-ev-desc" rows="3" placeholder="¿Por qué no se pueden perder este show?"
+                  style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; resize:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'"></textarea>
+              </div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Link de compra / reserva</label>
+                <input id="nl-ev-link" type="url" placeholder="https://..."
+                  style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+              </div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Tipo de entrada</label>
+                <select id="nl-ev-tipo" style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'">
+                  <option value="compra">🎟 Con compra de entrada</option>
+                  <option value="libre">✅ Entrada libre</option>
+                  <option value="reserva">📋 Reserva de mesa</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- MODO MENSAJE PERSONAL -->
+            <div id="nl-panel-personal" style="display:none;">
+              <div style="font-size:0.68rem; color:rgba(255,255,255,0.35); margin-bottom:4px; line-height:1.5;">Un mensaje directo de Pizpa a sus seguidores. Algo especial, un agradecimiento, una novedad.</div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Asunto</label>
+                <input id="nl-pers-subject" type="text" placeholder="Ej: Gracias por ser parte de Pizpa 🎭"
+                  style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" oninput="updateNlPreview()">
+              </div>
+              <div>
+                <label style="font-size:0.58rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); display:block; margin-bottom:4px;">Mensaje</label>
+                <textarea id="nl-pers-body" rows="7" placeholder="Escribe algo desde el corazón de Pizpa..."
+                  style="width:100%; background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:9px 12px; font-family:'DM Sans',sans-serif; font-size:0.82rem; outline:none; resize:vertical; box-sizing:border-box;" onfocus="this.style.borderColor='var(--yellow)'" onblur="this.style.borderColor='rgba(255,255,255,0.1)'" oninput="updateNlPreview()"></textarea>
+              </div>
+            </div>
+
+            <!-- Botón enviar (siempre visible) -->
+            <div style="display:flex; gap:8px; margin-top:4px; flex-wrap:wrap;">
+              <button onclick="sendNewsletter()" style="flex:1; background:var(--yellow); color:#000; border:none; font-family:'Bebas Neue',sans-serif; letter-spacing:3px; font-size:0.85rem; padding:13px; cursor:pointer;">
+                📧 Enviar a todos
+              </button>
+            </div>
+            <div id="nl-send-status" style="display:none; font-size:0.78rem; padding:10px 14px;"></div>
+          </div>
+
+          <!-- Derecha: preview -->
+          <div style="background:#1a1a1a; border:1px solid rgba(255,255,255,0.08); padding:20px; font-size:0.82rem; color:rgba(255,255,255,0.7); line-height:1.7; overflow-y:auto; max-height:480px;">
+            <div style="font-size:0.58rem; letter-spacing:3px; text-transform:uppercase; color:var(--muted); margin-bottom:12px;">Vista Previa</div>
+            <div style="font-family:'Bebas Neue',sans-serif; letter-spacing:2px; color:var(--yellow); margin-bottom:10px; font-size:1.1rem;" id="nl-preview-subject">— Asunto —</div>
+            <div id="nl-preview-body" style="white-space:pre-wrap; color:rgba(245,237,214,0.65); font-size:0.8rem;">El mensaje aparecerá aquí...</div>
+            <div style="margin-top:16px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.07); font-size:0.65rem; color:rgba(255,255,255,0.25);">
+              Pizpa Comedy Club · C.C. Yamin Center, Altamira · Caracas<br>
+              Para cancelar tu suscripción responde con CANCELAR
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Lista de suscriptores -->
+      <div style="background:var(--card); border:1px solid rgba(255,255,255,0.05); padding:24px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:1rem; letter-spacing:3px; color:var(--yellow);">Lista de Suscriptores</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+            <button onclick="includeAllSubscribers()" style="background:rgba(95,221,138,0.12); color:#5fdd8a; border:1px solid rgba(95,221,138,0.4); font-family:'Bebas Neue',sans-serif; letter-spacing:2px; font-size:0.7rem; padding:8px 14px; cursor:pointer;" title="Incluir a todos en el próximo envío">✓ INCLUIR TODOS</button>
+            <button onclick="excludeAllSubscribers()" style="background:rgba(248,113,113,0.1); color:#f87171; border:1px solid rgba(248,113,113,0.35); font-family:'Bebas Neue',sans-serif; letter-spacing:2px; font-size:0.7rem; padding:8px 14px; cursor:pointer;" title="Excluir a todos del próximo envío">✕ EXCLUIR TODOS</button>
+            <button onclick="exportSubscribersCSV()" style="background:rgba(255,255,255,0.07); color:#fff; border:1px solid rgba(255,255,255,0.1); font-family:'Bebas Neue',sans-serif; letter-spacing:2px; font-size:0.7rem; padding:8px 14px; cursor:pointer;">↓ CSV</button>
+          </div>
+        </div>
+
+        <!-- Filtros -->
+        <div style="display:flex; gap:8px; margin-bottom:12px; flex-wrap:wrap; align-items:center;">
+          <input id="nl-search" type="text" placeholder="🔍 Buscar nombre o email..."
+            oninput="filterSubscribers()"
+            style="flex:1; min-width:160px; background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px 12px; font-family:'DM Sans',sans-serif; font-size:0.78rem; outline:none;">
+          <select id="nl-filter-status" onchange="filterSubscribers()"
+            style="background:rgba(255,255,255,0.07); border:1px solid rgba(255,255,255,0.1); color:#fff; padding:8px 10px; font-family:'DM Sans',sans-serif; font-size:0.78rem; outline:none; cursor:pointer;">
+            <option value="all">Todos</option>
+            <option value="included">Incluidos</option>
+            <option value="excluded">Excluidos</option>
+            <option value="bday">Con cumpleaños</option>
+          </select>
+          <div id="nl-filter-count" style="font-size:0.7rem; color:var(--muted); white-space:nowrap;"></div>
+        </div>
+
+        <div id="nl-subscribers-list" style="display:flex; flex-direction:column; gap:2px; max-height:500px; overflow-y:auto;">
+          <div style="color:var(--muted); font-size:0.82rem; padding:12px 0;">Cargando suscriptores...</div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /admin-content -->
+</div><!-- /admin-panel -->
+
+<div id="toast">✅ Guardado correctamente</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// CONTRASEÑA — CÁMBIALA POR LA TUYA
+// ══════════════════════════════════════════════════════════
+const ADMIN_USER     = "sampins";
+const ADMIN_PASSWORD = "Seda111220#";
+
+// ══════════════════════════════════════════════════════════
+// LOGIN
+// ══════════════════════════════════════════════════════════
+function checkLogin() {
+  if (sessionStorage.getItem('pizpa_admin') === 'ok') showAdmin();
+}
+window.checkLogin = checkLogin;
+window.dispatchEvent(new Event('adminReady'));
+
+function doLogin() {
+  const user = (document.getElementById('user-input').value || '').trim();
+  const val  = document.getElementById('pwd-input').value;
+  if (user === ADMIN_USER && val === ADMIN_PASSWORD) {
+    sessionStorage.setItem('pizpa_admin', 'ok');
+    showAdmin();
+  } else {
+    document.getElementById('login-error').style.display = 'block';
+    document.getElementById('pwd-input').value = '';
+  }
+}
+window.doLogin = doLogin;
+
+function doLogout() {
+  sessionStorage.removeItem('pizpa_admin');
+  location.reload();
+}
+window.doLogout = doLogout;
+
+function showAdmin() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('admin-panel').style.display = 'block';
+  loadShows();
+  loadMenu();
+  loadMerch();
+  loadGallery();
+  loadPrices();
+  loadSpecialPrices();
+  loadReviews();
+  loadCountdown();
+}
+
+// ══════════════════════════════════════════════════════════
+// PANEL NAVIGATION
+// ══════════════════════════════════════════════════════════
+function switchPanel(name) {
+  document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.admin-tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('panel-' + name).classList.add('active');
+  if (name === 'comunidad') loadComunidad(_cfFilter || 'all');
+  event.currentTarget.classList.add('active');
+}
+
+// ══════════════════════════════════════════════════════════
+// TOAST
+// ══════════════════════════════════════════════════════════
+function toast(msg, isError = false) {
+  const t = document.getElementById('toast');
+  t.textContent = (isError ? '❌ ' : '✅ ') + msg;
+  t.className = isError ? 'error show' : 'show';
+  setTimeout(() => t.className = isError ? 'error' : '', 3000);
+}
+
+// ══════════════════════════════════════════════════════════
+// HELPER: esperar Firebase
+// ══════════════════════════════════════════════════════════
+function waitForDB(cb) {
+  if (window._db) { cb(); return; }
+  let tries = 0;
+  const interval = setInterval(() => {
+    if (window._db) { clearInterval(interval); cb(); }
+    if (++tries > 30) { clearInterval(interval); toast('Error: Firebase no conectado. Revisa tu config.', true); }
+  }, 200);
+}
+
+// ══════════════════════════════════════════════════════════
+// SHOWS
+// ══════════════════════════════════════════════════════════
+function addShow() {
+  const name  = document.getElementById('s-name').value.trim();
+  const date  = document.getElementById('s-date').value;
+  const time  = document.getElementById('s-time').value || '20:00';
+  const desc  = document.getElementById('s-desc').value.trim();
+  const type  = document.getElementById('s-type').value;
+  const week  = document.getElementById('s-week').value;
+  const link  = document.getElementById('s-link').value.trim();
+  const flyer = document.getElementById('s-flyer').value.trim();
+
+  if (!name) { toast('El nombre del show es obligatorio', true); return; }
+  if (!date) { toast('Selecciona la fecha del show', true); return; }
+
+  const dateObj  = new Date(date + 'T' + time);
+  const dayLabel = dateObj.toLocaleDateString('es-VE', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
+  const timeLabel = dateObj.toLocaleTimeString('es-VE', { hour:'2-digit', minute:'2-digit', hour12:true });
+
+  waitForDB(() => {
+    const showsRef = window._dbRef(window._db, 'shows');
+    window._dbGet(showsRef).then(snap => {
+      const shows = snap.val() || {};
+      const id = 'show_' + Date.now();
+      shows[id] = { id, name, date, time, dayLabel, timeLabel, desc, type, week, link, flyerUrl: flyer, createdAt: Date.now() };
+      window._dbSet(showsRef, shows).then(() => {
+        toast('Show agregado');
+        document.getElementById('s-name').value = '';
+        document.getElementById('s-date').value = '';
+        document.getElementById('s-time').value = '20:00';
+        document.getElementById('s-desc').value = '';
+        document.getElementById('s-link').value = '';
+        document.getElementById('s-flyer').value = '';
+        loadShows();
+      }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+
+function deleteShow(id) {
+  if (!confirm('¿Eliminar este show?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'shows/' + id), null)
+      .then(() => { toast('Show eliminado'); loadShows(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+
+function editShow(id) {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'shows/' + id)).then(snap => {
+      const s = snap.val();
+      if (!s) return;
+
+      // Create edit modal
+      const existing = document.getElementById('edit-show-modal');
+      if (existing) existing.remove();
+
+      const modal = document.createElement('div');
+      modal.id = 'edit-show-modal';
+      modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9000;display:flex;align-items:center;justify-content:center;padding:24px;';
+      modal.innerHTML = `
+        <div style="background:var(--dark);border:1px solid rgba(232,168,32,0.3);padding:40px;width:100%;max-width:640px;max-height:90vh;overflow-y:auto;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:28px;">
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:1.4rem;letter-spacing:4px;color:var(--yellow);">✏️ EDITAR SHOW</div>
+            <button onclick="document.getElementById('edit-show-modal').remove()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:1.4rem;">✕</button>
+          </div>
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Nombre del show</label>
+              <input type="text" id="es-name" value="${s.name || ''}">
+            </div>
+            <div class="form-group">
+              <label>Descripción</label>
+              <input type="text" id="es-desc" value="${s.desc || ''}">
+            </div>
+            <div class="form-group">
+              <label>Fecha</label>
+              <input type="date" id="es-date" value="${s.date || ''}">
+            </div>
+            <div class="form-group">
+              <label>Hora</label>
+              <input type="time" id="es-time" value="${s.time || '20:00'}">
+            </div>
+            <div class="form-group">
+              <label>Tipo de entrada</label>
+              <select id="es-type">
+                <option value="cover" ${s.type==='cover'?'selected':''}>Con Cover (Ticketplate)</option>
+                <option value="free" ${s.type==='free'?'selected':''}>Entrada Libre</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label>Categoría</label>
+              <select id="es-week">
+                <option value="fijos" ${s.week==='fijos'?'selected':''}>Show Fijo (semanal)</option>
+                <option value="rotativos" ${s.week==='rotativos'?'selected':''}>Martes & Miércoles (Rotativos)</option>
+                <option value="especial" ${s.week==='especial'?'selected':''}>Show Especial</option>
+              </select>
+            </div>
+            <div class="form-group full">
+              <label>Link Ticketplate</label>
+              <input type="url" id="es-link" value="${s.link || ''}" placeholder="https://ticketplate.com/...">
+            </div>
+            <div class="form-group full">
+              <label>URL del Flyer — sube en <a href="https://imgbb.com" target="_blank" style="color:var(--yellow);">imgbb.com</a></label>
+              <input type="url" id="es-flyer" value="${s.flyerUrl || ''}" placeholder="https://i.ibb.co/...">
+            </div>
+            <div class="form-group full" id="es-flyer-preview-wrap" style="${s.flyerUrl ? '' : 'display:none;'}">
+              <label>Preview del flyer actual</label>
+              <img id="es-flyer-preview" src="${s.flyerUrl || ''}" alt="flyer" style="max-width:200px; max-height:150px; object-fit:cover; border:1px solid rgba(255,255,255,0.1);">
+            </div>
+          </div>
+          <div style="display:flex;gap:12px;margin-top:28px;">
+            <button onclick="saveEditShow('${id}')" class="btn-save" style="flex:1;">💾 GUARDAR CAMBIOS</button>
+            <button onclick="document.getElementById('edit-show-modal').remove()" style="background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.1);color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px;padding:14px 24px;cursor:pointer;">CANCELAR</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+
+      // Live preview for flyer url
+      document.getElementById('es-flyer').addEventListener('input', function() {
+        const wrap = document.getElementById('es-flyer-preview-wrap');
+        const img  = document.getElementById('es-flyer-preview');
+        if (this.value) { img.src = this.value; wrap.style.display = ''; }
+        else { wrap.style.display = 'none'; }
+      });
+    });
+  });
+}
+
+function saveEditShow(id) {
+  const name  = document.getElementById('es-name').value.trim();
+  const date  = document.getElementById('es-date').value;
+  const time  = document.getElementById('es-time').value || '20:00';
+  const desc  = document.getElementById('es-desc').value.trim();
+  const type  = document.getElementById('es-type').value;
+  const week  = document.getElementById('es-week').value;
+  const link  = document.getElementById('es-link').value.trim();
+  const flyer = document.getElementById('es-flyer').value.trim();
+
+  if (!name) { toast('El nombre es obligatorio', true); return; }
+
+  const dateObj   = date ? new Date(date + 'T' + time) : null;
+  const dayLabel  = dateObj ? dateObj.toLocaleDateString('es-VE', {weekday:'short',day:'numeric',month:'short',year:'numeric'}) : '';
+  const timeLabel = dateObj ? dateObj.toLocaleTimeString('es-VE', {hour:'2-digit',minute:'2-digit',hour12:true}) : '';
+
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'shows/' + id)).then(snap => {
+      const existing = snap.val() || {};
+      const updated = { ...existing, name, date, time, dayLabel, timeLabel, desc, type, week, link, flyerUrl: flyer };
+      window._dbSet(window._dbRef(window._db, 'shows/' + id), updated)
+        .then(() => {
+          toast('Show actualizado');
+          document.getElementById('edit-show-modal').remove();
+          loadShows();
+        }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+window.editShow = editShow;
+window.saveEditShow = saveEditShow;
+
+function loadShows() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'shows')).then(snap => {
+      const shows = snap.val() || {};
+      const list  = document.getElementById('shows-list');
+      const arr   = Object.values(shows);
+      if (!arr.length) { list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px;">No hay shows agregados todavía.</div>'; return; }
+
+      arr.sort((a, b) => {
+        const da = a.date ? new Date(a.date + 'T' + (a.time || '00:00')) : new Date(a.createdAt || 0);
+        const db_ = b.date ? new Date(b.date + 'T' + (b.time || '00:00')) : new Date(b.createdAt || 0);
+        return da - db_;
+      });
+
+      const today = new Date(); today.setHours(0,0,0,0);
+      const weekLabels = { fijos: 'Show Fijo', rotativos: 'Martes & Miércoles', especial: '⭐ Especial' };
+
+      list.innerHTML = arr.map(s => {
+        const isPast = s.date && new Date(s.date + 'T23:59') < today;
+        const fechaTexto = s.date ? `📅 ${s.dayLabel || s.date}${s.timeLabel ? ' · ' + s.timeLabel : ''}` : (s.day ? '📅 ' + s.day : '');
+        const flyerThumb = s.flyerUrl
+          ? `<img src="${s.flyerUrl}" alt="flyer" style="width:56px; height:56px; object-fit:cover; border-radius:2px; flex-shrink:0; border:1px solid rgba(255,255,255,0.1);">`
+          : `<div style="width:56px; height:56px; background:rgba(255,255,255,0.04); border:1px dashed rgba(255,255,255,0.15); flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1.4rem;">🎭</div>`;
+        return `
+        <div class="item-row" style="${isPast ? 'opacity:0.45;' : ''}">
+          ${flyerThumb}
+          <div class="item-info">
+            <div class="item-name">
+              ${s.name}
+              <span style="font-size:0.65rem;color:var(--yellow);border:1px solid var(--yellow);padding:2px 8px;margin-left:8px;">${weekLabels[s.week] || s.week}</span>
+              ${isPast ? '<span style="font-size:0.6rem;color:var(--muted);border:1px solid var(--muted);padding:2px 6px;margin-left:4px;">PASADO</span>' : ''}
+            </div>
+            <div class="item-meta">
+              ${fechaTexto}
+              &nbsp;·&nbsp; ${s.type === 'cover' ? '🎟 Con Cover' : '🆓 Entrada Libre'}
+              ${s.desc ? '<br>' + s.desc : ''}
+              ${s.link ? '<br><a href="'+s.link+'" target="_blank" style="color:var(--yellow);font-size:0.75rem;">↗ Ticketplate</a>' : ''}
+              ${s.flyerUrl ? '<br><a href="'+s.flyerUrl+'" target="_blank" style="color:rgba(245,237,214,0.5);font-size:0.72rem;">🖼 Ver flyer</a>' : ''}
+            </div>
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+            <button onclick="editShow('${s.id}')" 
+              style="background:rgba(232,168,32,0.12);border:1px solid rgba(232,168,32,0.35);color:var(--yellow);font-size:0.72rem;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;">
+              ✏️ EDITAR
+            </button>
+            <button class="btn-delete" onclick="deleteShow('${s.id}')">ELIMINAR</button>
+          </div>
+        </div>`;
+      }).join('');
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// SEED — CARGA INICIAL DEL MENÚ COMPLETO
+// ══════════════════════════════════════════════════════════
+function seedMenu() {
+  if (!confirm('¿Cargar todos los items del menú Pizpa? Hazlo solo si el menú está vacío.')) return;
+
+  const ITEMS = [
+    // ENTRADAS
+    { cat:'Entradas', name:'Tequeños',             desc:'10 unidades',                                                                          price:10, tag:'' },
+    { cat:'Entradas', name:'Nachos',               desc:'Carne o Pollo',                                                                        price:10, tag:'' },
+    { cat:'Entradas', name:'Tenders de Pollo',     desc:'',                                                                                     price:10, tag:'' },
+    { cat:'Entradas', name:'Alitas Sal & Pimienta',desc:'10 / 20 / 40 uds · BBQ disponible',                                                    price:10, tag:'' },
+    // ENSALADAS
+    { cat:'Ensaladas', name:'César',   desc:'Lechuga, parmesano, tocineta, pollo, aderezo césar',                                               price:10, tag:'' },
+    { cat:'Ensaladas', name:'Burrata', desc:'Rúgula, prosciutto crudo, burrata, reducción de vinagre balsámico',                                price:10, tag:'' },
+    // PIZZAS
+    { cat:'Pizzas', name:'Margarita',                   desc:'Salsa y mozzarella',                                                              price:10, tag:'' },
+    { cat:'Pizzas', name:'Pepperoni',                   desc:'Salsa, mozzarella y pepperoni',                                                   price:10, tag:'' },
+    { cat:'Pizzas', name:'Tocineta',                    desc:'Salsa, mozzarella, jamón, tocineta, maíz y champiñones',                          price:10, tag:'' },
+    { cat:'Pizzas', name:'Prosciutto Burrata',          desc:'Focaccia, rúgula, prosciutto crudo, queso burrata y reducción de vinagre balsámico', price:10, tag:'' },
+    { cat:'Pizzas', name:'Cebolla Dulce & Queso de Cabra', desc:'Salsa, mozzarella, cebolla caramelizada y queso de cabra',                    price:10, tag:'' },
+    { cat:'Pizzas', name:'Jamón y Maíz',                desc:'Salsa, mozzarella, jamón y maíz',                                                price:10, tag:'' },
+    { cat:'Pizzas', name:'Vegetariana',                 desc:'Salsa, mozzarella, cebolla, pimentón, champiñones y aceitunas negras',            price:10, tag:'' },
+    { cat:'Pizzas', name:'Pizpa',                       desc:'Pollo, lonrito, chistorra y papas fritas de topping',                             price:10, tag:'Firma' },
+    { cat:'Pizzas', name:'Chistorra 4 Quesos',          desc:'Salsa, mozzarella, chistorra, queso azul, queso amarillo y queso parmesano',      price:10, tag:'' },
+    { cat:'Pizzas', name:'Carpaccio',                   desc:'Carpaccio de lonrito, champiñones, salsa mayo pesto y parmesano',                 price:10, tag:'' },
+    // BURGERS
+    { cat:'Burgers', name:'Triple Smash', desc:'Tocineta · Con papas fritas y bebida refill', price:10, tag:'' },
+    { cat:'Burgers', name:'Crispy Slaw',  desc:'Con papas fritas y bebida refill',            price:10, tag:'' },
+    // POSTRES
+    { cat:'Postres', name:'Milkshake', desc:'Oreo',        price:10, tag:'' },
+    { cat:'Postres', name:'Nutipizza', desc:'Marshmallows', price:10, tag:'' },
+    // SIGNATURES
+    { cat:'Signatures', name:'El Chingón',  desc:'Tequila Gold · Zumo de limón, chinotto, reducción de jengibre y pimentón, hojas de albahaca y tabasco', price:10, tag:'Firma' },
+    { cat:'Signatures', name:'Gomicornio',  desc:'Vodka · Leche condensada, zumo de limón, zumo de parchita, fresa y gomitas',                            price:10, tag:'Firma' },
+    // COCTELES CLÁSICOS
+    { cat:'Cocteles Clásicos', name:'Daiquirí',      desc:'Tradicional · Parchita · Fresa',                price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Margarita',     desc:'Tradicional · Parchita',                        price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Mojito',        desc:'Tradicional · Parchita · Fresa · Jaggermojito', price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Cuba Libre',    desc:'',                                              price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Piña Colada',   desc:'',                                              price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Moscow Mule',   desc:'',                                              price:10, tag:'' },
+    { cat:'Cocteles Clásicos', name:'Aperol Spritz', desc:'',                                              price:10, tag:'' },
+    // LICORES
+    { cat:'Licores', name:'Ron',     desc:'Gran Reserva · Linaje · Selecto · 1796 · Diplomático', price:10, tag:'' },
+    { cat:'Licores', name:'Whisky',  desc:'Old Parr 12 · Buchannans 12',                          price:10, tag:'' },
+    { cat:'Licores', name:'Tequila', desc:'Don Julio · José Cuervo',                              price:10, tag:'' },
+    { cat:'Licores', name:'Vodka',   desc:'Absolut · Grey Goose',                                 price:10, tag:'' },
+    { cat:'Licores', name:'Ginebra', desc:'Tanqueray · Brockmans',                                price:10, tag:'' },
+    // VINOS
+    { cat:'Vinos', name:'Vino Joven',      desc:'', price:10, tag:'' },
+    { cat:'Vinos', name:'Sangría',         desc:'', price:10, tag:'' },
+    { cat:'Vinos', name:'Tinto de Verano', desc:'', price:10, tag:'' },
+    { cat:'Vinos', name:'Primavera',       desc:'', price:10, tag:'' },
+    // CERVEZAS
+    { cat:'Cervezas', name:'Nacionales',         desc:'',                                     price:10, tag:'' },
+    { cat:'Cervezas', name:'Importadas',         desc:'',                                     price:10, tag:'' },
+    { cat:'Cervezas', name:'Mezcla de Cerveza',  desc:'',                                     price:10, tag:'' },
+    { cat:'Cervezas', name:'Chelada',            desc:'Mezcla con la cerveza de tu elección', price:10, tag:'' },
+    { cat:'Cervezas', name:'Michelada',          desc:'',                                     price:10, tag:'' },
+    // SIN ALCOHOL
+    { cat:'Sin Alcohol', name:'Agua Mineral',     desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Agua Sparkling',   desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Refresco',         desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Jugo de Naranja',  desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Jugo de Fresa',    desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Jugo de Parchita', desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Papelón',          desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Limonada',         desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Redbull',          desc:'', price:10, tag:'' },
+    { cat:'Sin Alcohol', name:'Frappé / Café',    desc:'', price:10, tag:'' },
+  ];
+
+  waitForDB(() => {
+    const menuRef = window._dbRef(window._db, 'menu');
+    window._dbGet(menuRef).then(snap => {
+      const menu = snap.val() || {};
+      ITEMS.forEach(item => {
+        const id = 'item_' + Date.now() + '_' + Math.random().toString(36).substr(2,5);
+        menu[id] = { id, ...item, createdAt: Date.now() };
+      });
+      window._dbSet(menuRef, menu).then(() => {
+        toast(`✅ ${ITEMS.length} items cargados al menú`);
+        loadMenu();
+        loadPrices();
+      }).catch(() => toast('Error al cargar el menú', true));
+    });
+  });
+}
+window.seedMenu = seedMenu;
+
+// ══════════════════════════════════════════════════════════
+// MENÚ
+// ══════════════════════════════════════════════════════════
+function addMenuItem() {
+  const name  = document.getElementById('m-name').value.trim();
+  const cat   = document.getElementById('m-cat').value;
+  const desc  = document.getElementById('m-desc').value.trim();
+  const price = parseFloat(document.getElementById('m-price').value) || 0;
+  const tag   = document.getElementById('m-tag').value;
+
+  if (!name) { toast('El nombre es obligatorio', true); return; }
+
+  waitForDB(() => {
+    const menuRef = window._dbRef(window._db, 'menu');
+    window._dbGet(menuRef).then(snap => {
+      const menu = snap.val() || {};
+      const id = 'item_' + Date.now();
+      menu[id] = { id, name, cat, desc, price, tag, createdAt: Date.now() };
+      window._dbSet(menuRef, menu).then(() => {
+        toast('Item agregado al menú');
+        ['m-name','m-desc','m-price'].forEach(f => document.getElementById(f).value = '');
+        document.getElementById('m-tag').value = '';
+        loadMenu();
+        loadPrices();
+      }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+
+function deleteMenuItem(id) {
+  if (!confirm('¿Eliminar este item?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'menu/' + id), null)
+      .then(() => { toast('Item eliminado'); loadMenu(); loadPrices(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+
+function loadMenu() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'menu')).then(snap => {
+      const menu = snap.val() || {};
+      const list = document.getElementById('menu-list');
+      const arr = Object.values(menu);
+      if (!arr.length) { list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px;">No hay items agregados todavía. Los items del menú original están en el HTML base.</div>'; return; }
+      // Group by category
+      const grouped = {};
+      arr.forEach(item => { if (!grouped[item.cat]) grouped[item.cat] = []; grouped[item.cat].push(item); });
+      list.innerHTML = Object.entries(grouped).map(([cat, items]) => `
+        <div style="margin-bottom:24px;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:0.9rem; letter-spacing:3px; color:var(--yellow); padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.06); margin-bottom:8px;">${cat}</div>
+          ${items.map(item => `
+            <div class="item-row">
+              <div class="item-info">
+                <div class="item-name">${item.name} ${item.tag ? '<span style="font-size:0.65rem;color:var(--yellow);border:1px solid var(--yellow);padding:2px 8px;margin-left:8px;">'+ item.tag +'</span>' : ''}</div>
+                ${item.desc ? '<div class="item-meta">' + item.desc + '</div>' : ''}
+              </div>
+              <div class="item-price">Ref. ${item.price}</div>
+              <button class="btn-delete" onclick="deleteMenuItem('${item.id}')">ELIMINAR</button>
+            </div>
+          `).join('')}
+        </div>
+      `).join('');
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// GALERÍA
+// ══════════════════════════════════════════════════════════
+document.getElementById('g-url').addEventListener('input', function() {
+  const preview = document.getElementById('g-preview');
+  if (this.value.startsWith('http')) {
+    preview.src = this.value;
+    preview.style.display = 'block';
+  } else {
+    preview.style.display = 'none';
+  }
+});
+
+// ══════════════════════════════════════════════════════════
+// MERCH
+// ══════════════════════════════════════════════════════════
+function previewMerchPhoto(input, previewId) {
+  const img = document.getElementById(previewId);
+  if (input.value.startsWith('http')) { img.src = input.value; img.style.display = 'block'; }
+  else img.style.display = 'none';
+}
+window.previewMerchPhoto = previewMerchPhoto;
+
+function addMerchItem() {
+  const name  = document.getElementById('mc-name').value.trim();
+  const price = parseFloat(document.getElementById('mc-price').value) || 0;
+  const desc  = document.getElementById('mc-desc').value.trim();
+  const sizes = document.getElementById('mc-sizes').value.trim();
+  const emoji = document.getElementById('mc-emoji').value.trim() || '🛍';
+  const foto1 = document.getElementById('mc-foto1').value.trim();
+  const foto2 = document.getElementById('mc-foto2').value.trim();
+
+  if (!name) { toast('El nombre es obligatorio', true); return; }
+
+  waitForDB(() => {
+    const merchRef = window._dbRef(window._db, 'merch');
+    window._dbGet(merchRef).then(snap => {
+      const merch = snap.val() || {};
+      const id = 'merch_' + Date.now();
+      merch[id] = { id, name, price, desc, sizes, emoji, foto1, foto2, visible: true, createdAt: Date.now() };
+      window._dbSet(merchRef, merch).then(() => {
+        toast('Producto agregado');
+        ['mc-name','mc-price','mc-desc','mc-sizes','mc-emoji','mc-foto1','mc-foto2'].forEach(f => document.getElementById(f).value = '');
+        ['prev1','prev2'].forEach(id => { const el = document.getElementById(id); el.src=''; el.style.display='none'; });
+        loadMerch();
+      }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+window.addMerchItem = addMerchItem;
+
+function toggleEditMerch(id) {
+  const view = document.getElementById('mview-' + id);
+  const edit = document.getElementById('medit-' + id);
+  const isOpen = edit.style.display !== 'none';
+  edit.style.display = isOpen ? 'none' : 'block';
+  view.style.display = isOpen ? 'flex' : 'none';
+}
+window.toggleEditMerch = toggleEditMerch;
+
+function saveMerchItem(id) {
+  const name  = document.getElementById('em-name-' + id).value.trim();
+  const price = parseFloat(document.getElementById('em-price-' + id).value) || 0;
+  const desc  = document.getElementById('em-desc-' + id).value.trim();
+  const sizes = document.getElementById('em-sizes-' + id).value.trim();
+  const foto1 = document.getElementById('em-foto1-' + id).value.trim();
+  const foto2 = document.getElementById('em-foto2-' + id).value.trim();
+
+  if (!name) { toast('El nombre no puede estar vacío', true); return; }
+
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'merch/' + id)).then(snap => {
+      const item = snap.val();
+      if (!item) { toast('Producto no encontrado', true); return; }
+      const updated = { ...item, name, price, desc, sizes, foto1, foto2 };
+      window._dbSet(window._dbRef(window._db, 'merch/' + id), updated)
+        .then(() => { toast('Producto actualizado'); loadMerch(); })
+        .catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+window.saveMerchItem = saveMerchItem;
+
+function deleteMerchItem(id) {
+  if (!confirm('¿Eliminar este producto?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'merch/' + id), null)
+      .then(() => { toast('Producto eliminado'); loadMerch(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+window.deleteMerchItem = deleteMerchItem;
+
+function loadMerch() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'merch')).then(snap => {
+      const data = snap.val() || {};
+      const list = document.getElementById('merch-admin-list');
+      const arr  = Object.values(data);
+
+      if (!arr.length) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px;">No hay productos todavía.</div>';
+        return;
+      }
+
+      arr.sort((a,b) => (a.createdAt||0) - (b.createdAt||0));
+
+      list.innerHTML = arr.map(item => `
+
+        <!-- VISTA NORMAL -->
+        <div id="mview-${item.id}" class="item-row" style="display:flex; align-items:center; gap:16px;">
+          ${item.foto1 ? `<img src="${item.foto1}" style="width:56px; height:56px; object-fit:cover; flex-shrink:0; border:1px solid rgba(255,255,255,0.08);" onerror="this.style.display='none'">` : `<div style="font-size:2rem; width:56px; text-align:center;">${item.emoji||'🛍'}</div>`}
+          <div class="item-info" style="flex:1;">
+            <div class="item-name">${item.name}</div>
+            <div class="item-meta">${item.desc || ''} ${item.sizes ? '· Tallas: ' + item.sizes : ''}</div>
+          </div>
+          <div class="item-price">$${item.price}</div>
+          <button style="background:rgba(232,168,32,0.12);border:1px solid rgba(232,168,32,0.35);color:var(--yellow);font-size:0.75rem;padding:6px 14px;cursor:pointer;font-family:'DM Sans',sans-serif;" onclick="toggleEditMerch('${item.id}')">EDITAR</button>
+          <button class="btn-delete" onclick="deleteMerchItem('${item.id}')">ELIMINAR</button>
+        </div>
+
+        <!-- FORMULARIO EDICIÓN -->
+        <div id="medit-${item.id}" style="display:none; background:rgba(232,168,32,0.05); border:1px solid rgba(232,168,32,0.2); padding:24px; margin-bottom:3px;">
+          <div style="font-family:'Bebas Neue',sans-serif; font-size:0.8rem; letter-spacing:3px; color:var(--yellow); margin-bottom:16px;">✏️ EDITANDO: ${item.name}</div>
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px; margin-bottom:16px;">
+            <div class="form-group">
+              <label>Nombre</label>
+              <input type="text" id="em-name-${item.id}" value="${(item.name||'').replace(/"/g,'&quot;')}">
+            </div>
+            <div class="form-group">
+              <label>Precio ($)</label>
+              <input type="number" id="em-price-${item.id}" value="${item.price}" min="0" step="0.5">
+            </div>
+            <div class="form-group full">
+              <label>Descripción</label>
+              <input type="text" id="em-desc-${item.id}" value="${(item.desc||'').replace(/"/g,'&quot;')}">
+            </div>
+            <div class="form-group full">
+              <label>Tallas (separadas por coma)</label>
+              <input type="text" id="em-sizes-${item.id}" value="${(item.sizes||'').replace(/"/g,'&quot;')}">
+            </div>
+            <div class="form-group full">
+              <label>Foto principal (URL)</label>
+              <input type="url" id="em-foto1-${item.id}" value="${item.foto1||''}" placeholder="https://i.ibb.co/...">
+            </div>
+            <div class="form-group full">
+              <label>Foto secundaria / hover (URL)</label>
+              <input type="url" id="em-foto2-${item.id}" value="${item.foto2||''}" placeholder="https://i.ibb.co/...">
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn-save" onclick="saveMerchItem('${item.id}')">💾 GUARDAR CAMBIOS</button>
+            <button onclick="toggleEditMerch('${item.id}')" style="background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.12);color:var(--muted);font-family:'Bebas Neue',sans-serif;letter-spacing:2px;font-size:0.85rem;padding:14px 24px;cursor:pointer;">CANCELAR</button>
+          </div>
+        </div>
+
+      `).join('');
+    });
+  });
+}
+window.loadMerch = loadMerch;
+
+function addPhoto() {
+  const url     = document.getElementById('g-url').value.trim();
+  const caption = document.getElementById('g-caption').value.trim();
+  const section = document.getElementById('g-section').value;
+
+  if (!url) { toast('La URL de la imagen es obligatoria', true); return; }
+  if (!url.startsWith('http')) { toast('Ingresa una URL válida que empiece con https://', true); return; }
+
+  waitForDB(() => {
+    const galleryRef = window._dbRef(window._db, 'gallery');
+    window._dbGet(galleryRef).then(snap => {
+      const gallery = snap.val() || {};
+      const id = 'photo_' + Date.now();
+      gallery[id] = { id, url, caption, section, createdAt: Date.now() };
+      window._dbSet(galleryRef, gallery).then(() => {
+        toast('Foto agregada a la galería');
+        document.getElementById('g-url').value = '';
+        document.getElementById('g-caption').value = '';
+        document.getElementById('g-preview').style.display = 'none';
+        loadGallery();
+      }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+
+function deletePhoto(id) {
+  if (!confirm('¿Eliminar esta foto?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'gallery/' + id), null)
+      .then(() => { toast('Foto eliminada'); loadGallery(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+
+function loadGallery() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'gallery')).then(snap => {
+      const gallery = snap.val() || {};
+      const arr = Object.values(gallery);
+      ['recuerdos','lugar'].forEach(section => {
+        const container = document.getElementById('gallery-' + section);
+        const photos = arr.filter(p => p.section === section);
+        if (!container) return;
+        if (!photos.length) {
+          container.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:12px;">Sin fotos en esta sección.</div>';
+          return;
+        }
+        container.innerHTML = photos.map(p => `
+          <div class="gallery-admin-item">
+            <img src="${p.url}" alt="${p.caption}" onerror="this.style.display='none'">
+            <div class="del-overlay" onclick="deletePhoto('${p.id}')">
+              <span>🗑</span>
+            </div>
+            <div style="position:absolute;bottom:0;left:0;right:0;background:rgba(0,0,0,0.7);padding:6px 10px;font-size:0.7rem;color:var(--cream);">${p.caption || ''}</div>
+          </div>
+        `).join('');
+      });
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// PRECIOS
+// ══════════════════════════════════════════════════════════
+function loadPrices() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'menu')).then(snap => {
+      const menu = snap.val() || {};
+      const arr = Object.values(menu);
+      const list = document.getElementById('prices-list');
+      if (!arr.length) { list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">Agrega items en la pestaña Menú para verlos acá.</div>'; return; }
+      const FOOD_CATS  = ['Entradas','Ensaladas','Pizzas','Burgers','Postres'];
+      const DRINK_CATS = ['Signatures','Cocteles Clásicos','Licores','Vinos','Cervezas','Sin Alcohol'];
+      const CAT_ORDER  = [...FOOD_CATS, ...DRINK_CATS];
+      const grouped = {};
+      arr.forEach(item => { if (!grouped[item.cat]) grouped[item.cat]=[]; grouped[item.cat].push(item); });
+      const sorted = [...CAT_ORDER.filter(c=>grouped[c]), ...Object.keys(grouped).filter(c=>!CAT_ORDER.includes(c))];
+      list.innerHTML = sorted.map((cat,i) => {
+        const items  = grouped[cat];
+        const emoji  = FOOD_CATS.includes(cat) ? '🍕' : DRINK_CATS.includes(cat) ? '🍹' : '📦';
+        const label  = FOOD_CATS.includes(cat) ? 'COMIDA' : DRINK_CATS.includes(cat) ? 'BEBIDAS' : 'OTRO';
+        const lcolor = FOOD_CATS.includes(cat) ? 'var(--yellow)' : DRINK_CATS.includes(cat) ? '#4fc3f7' : 'var(--muted)';
+        return `<div style="margin-bottom:3px;border:1px solid rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;">
+          <div onclick="const b=this.nextElementSibling;b.style.display=b.style.display==='none'?'block':'none';this.querySelector('.arr').style.transform=b.style.display==='none'?'rotate(0deg)':'rotate(180deg)'"
+            style="display:flex;align-items:center;justify-content:space-between;padding:14px 18px;background:var(--surface);cursor:pointer;user-select:none;">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <span>${emoji}</span>
+              <span style="font-family:'Bebas Neue',sans-serif;font-size:1.1rem;letter-spacing:2px;color:var(--cream);">${cat}</span>
+              <span style="font-size:0.65rem;letter-spacing:2px;color:${lcolor};background:rgba(255,255,255,0.06);padding:2px 8px;border-radius:2px;">${label}</span>
+              <span style="font-size:0.75rem;color:var(--muted);">(${items.length} items)</span>
+            </div>
+            <span class="arr" style="color:var(--muted);font-size:0.8rem;transition:transform 0.2s;display:inline-block;">▼</span>
+          </div>
+          <div style="display:${i===0?'block':'none'};background:var(--bg);">
+            ${items.map(item=>`<div class="item-row" style="border-top:1px solid rgba(255,255,255,0.04);">
+              <div class="item-info"><div class="item-name">${item.name}</div>${item.desc?`<div class="item-meta" style="font-size:0.72rem;opacity:0.6;">${item.desc}</div>`:''}</div>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <span style="font-size:0.75rem;color:var(--muted);">Ref.</span>
+                <input type="number" id="price-${item.id}" value="${item.price}" min="0" step="0.5"
+                  style="width:90px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--yellow);">
+              </div>
+            </div>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+    });
+
+    // Load price config
+    window._dbGet(window._dbRef(window._db, 'config/priceNote')).then(snap => {
+      if (snap.val()) document.getElementById('price-note').value = snap.val();
+    });
+    window._dbGet(window._dbRef(window._db, 'config/pricePrefix')).then(snap => {
+      if (snap.val()) document.getElementById('price-prefix').value = snap.val();
+    });
+  });
+}
+
+function saveAllPrices() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'menu')).then(snap => {
+      const menu = snap.val() || {};
+      let changed = 0;
+      Object.keys(menu).forEach(id => {
+        const input = document.getElementById('price-' + id);
+        if (input) {
+          menu[id].price = parseFloat(input.value) || 0;
+          changed++;
+        }
+      });
+      window._dbSet(window._dbRef(window._db, 'menu'), menu).then(() => {
+        toast(changed + ' precios guardados correctamente');
+        loadMenu();
+      }).catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// ALITAS, BEBIDAS Y EXTRAS PIZZA
+// ══════════════════════════════════════════════════════════
+
+var PIZZA_EXTRAS_FIXED = ['Maíz','Jamón','Tocineta','Champiñones','Pimentón','Aceitunas','Pepperoni','Cebolla','Parmesano','Mozzarella','Chistorra'];
+// Presentaciones de bebidas con campos individuales
+var BEBIDAS_PRESENTACIONES = [
+  { id:'beb-refr-lata',  name:'Refresco',       sub:'Lata 350ml' },
+  { id:'beb-refr-1lt',   name:'Refresco',       sub:'1 litro'    },
+  { id:'beb-refr-2lt',   name:'Refresco',       sub:'2 litros'   },
+  { id:'beb-agua-600',   name:'Agua',           sub:'600 ml'     },
+  { id:'beb-spark-600',  name:'Agua Sparkling', sub:'600 ml'     }
+];
+
+function loadSpecialPrices() {
+  waitForDB(() => {
+    // ─── ALITAS: 3 campos individuales por item ───
+    Promise.all([
+      window._dbGet(window._dbRef(window._db, 'menu')),
+      window._dbGet(window._dbRef(window._db, 'alitas_config'))
+    ]).then(([menuSnap, alitasCfgSnap]) => {
+      const menu = menuSnap.val() || {};
+      const cfg  = alitasCfgSnap.val() || {};
+      const alitasItems = Object.values(menu).filter(i => i.name && i.name.toLowerCase().includes('alita'));
+      const list = document.getElementById('alitas-prices-list');
+      if (!alitasItems.length) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;">No hay alitas en el menú aún.</div>';
+        return;
+      }
+      list.innerHTML = alitasItems.map(item => {
+        const saved = cfg[item.id] || {};
+        const p10 = saved.p10 !== undefined ? saved.p10 : (item.price || 0);
+        const p20 = saved.p20 !== undefined ? saved.p20 : 0;
+        const p40 = saved.p40 !== undefined ? saved.p40 : 0;
+        return `<div style="background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:14px 18px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">${item.name}</div>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+              <label style="font-size:0.6rem;letter-spacing:2px;color:var(--muted);text-align:center;">10 UNIDADES</label>
+              <input type="number" id="alitas-p10-${item.id}" value="${p10}" min="0" step="0.5"
+                style="width:100%;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--yellow);">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+              <label style="font-size:0.6rem;letter-spacing:2px;color:var(--muted);text-align:center;">20 UNIDADES</label>
+              <input type="number" id="alitas-p20-${item.id}" value="${p20}" min="0" step="0.5"
+                style="width:100%;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--yellow);">
+            </div>
+            <div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+              <label style="font-size:0.6rem;letter-spacing:2px;color:var(--muted);text-align:center;">40 UNIDADES</label>
+              <input type="number" id="alitas-p40-${item.id}" value="${p40}" min="0" step="0.5"
+                style="width:100%;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--yellow);">
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+    });
+
+    // ─── BEBIDAS: 1 campo por cada presentación ───
+    window._dbGet(window._dbRef(window._db, 'bebidas_config')).then(snap => {
+      const saved = snap.val() || {};
+      const list = document.getElementById('bebidas-prices-list');
+      // Agrupar presentaciones por nombre de bebida
+      const grupos = {};
+      BEBIDAS_PRESENTACIONES.forEach(p => {
+        if (!grupos[p.name]) grupos[p.name] = [];
+        grupos[p.name].push(p);
+      });
+      list.innerHTML = Object.entries(grupos).map(([nombre, pres]) => `
+        <div style="background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:14px 18px;">
+          <div style="font-family:'Bebas Neue',sans-serif;font-size:1rem;letter-spacing:2px;color:var(--cream);margin-bottom:14px;">${nombre}</div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px;">
+            ${pres.map(p => {
+              const precio = saved[p.id] ? saved[p.id].price : 0;
+              return `<div style="display:flex;flex-direction:column;gap:5px;align-items:center;">
+                <label style="font-size:0.6rem;letter-spacing:2px;color:var(--muted);text-align:center;">${p.sub.toUpperCase()}</label>
+                <input type="number" id="beb-price-${p.id}" value="${precio}" min="0" step="0.5"
+                  style="width:100%;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.2rem;color:var(--yellow);">
+              </div>`;
+            }).join('')}
+          </div>
+        </div>`).join('');
+    });
+
+    // ─── EXTRAS PIZZA ───
+    window._dbGet(window._dbRef(window._db, 'pizza_extras')).then(snap => {
+      const saved = snap.val() || {};
+      const list  = document.getElementById('extras-pizza-list');
+      list.innerHTML = PIZZA_EXTRAS_FIXED.map(name => {
+        const key   = 'ex-' + name.toLowerCase().replace(/\s+/g,'_').replace(/[íéáóú]/g, c => ({í:'i',é:'e',á:'a',ó:'o',ú:'u'})[c]||c);
+        const precio = saved[key] ? saved[key].price : 0;
+        return `<div style="background:var(--surface);border:1px solid rgba(255,255,255,0.07);border-radius:3px;padding:12px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;">
+          <span style="font-size:0.85rem;color:var(--cream);">${name}</span>
+          <input type="number" id="extra-price-${key}" value="${precio}" min="0" step="0.5"
+            style="width:80px;text-align:center;font-family:'Bebas Neue',sans-serif;font-size:1.1rem;color:var(--yellow);">
+        </div>`;
+      }).join('');
+    });
+  });
+}
+
+function saveAlitasPrices() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'menu')).then(snap => {
+      const menu = snap.val() || {};
+      const alitasItems = Object.values(menu).filter(i => i.name && i.name.toLowerCase().includes('alita'));
+      const config = {};
+      alitasItems.forEach(item => {
+        const p10 = parseFloat((document.getElementById('alitas-p10-' + item.id)||{}).value)||0;
+        const p20 = parseFloat((document.getElementById('alitas-p20-' + item.id)||{}).value)||0;
+        const p40 = parseFloat((document.getElementById('alitas-p40-' + item.id)||{}).value)||0;
+        config[item.id] = { id: item.id, name: item.name, p10, p20, p40 };
+        // también actualiza el precio base en menu/ para el menú principal
+        if (menu[item.id]) menu[item.id].price = p10;
+      });
+      Promise.all([
+        window._dbSet(window._dbRef(window._db, 'alitas_config'), config),
+        window._dbSet(window._dbRef(window._db, 'menu'), menu)
+      ]).then(() => toast('Precios de alitas guardados (' + alitasItems.length + ' items)'))
+        .catch(() => toast('Error al guardar', true));
+    });
+  });
+}
+
+function saveBebidasPrices() {
+  waitForDB(() => {
+    const config = {};
+    BEBIDAS_PRESENTACIONES.forEach(p => {
+      const inp = document.getElementById('beb-price-' + p.id);
+      config[p.id] = { id: p.id, name: p.name, sub: p.sub, price: parseFloat(inp ? inp.value : 0)||0 };
+    });
+    window._dbSet(window._dbRef(window._db, 'bebidas_config'), config)
+      .then(() => toast('Precios de bebidas guardados'))
+      .catch(() => toast('Error al guardar', true));
+  });
+}
+
+function saveExtrasPizza() {
+  waitForDB(() => {
+    const extras = {};
+    PIZZA_EXTRAS_FIXED.forEach(name => {
+      const key = 'ex-' + name.toLowerCase().replace(/\s+/g,'_').replace(/[íéáóú]/g, c => ({í:'i',é:'e',á:'a',ó:'o',ú:'u'})[c]||c);
+      const inp = document.getElementById('extra-price-' + key);
+      extras[key] = { id: key, name: name, price: parseFloat(inp ? inp.value : 0)||0 };
+    });
+    window._dbSet(window._dbRef(window._db, 'pizza_extras'), extras)
+      .then(() => toast('Extras de pizza guardados'))
+      .catch(() => toast('Error al guardar', true));
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// RESEÑAS
+// ══════════════════════════════════════════════════════════
+function loadReviews() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'reviews')).then(snap => {
+      const data   = snap.val() || {};
+      const filter = document.getElementById('review-filter').value;
+      const list   = document.getElementById('reviews-admin-list');
+
+      let arr = Object.entries(data).map(([key, r]) => ({ ...r, _key: key }));
+      arr.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
+      if (filter === 'visible') arr = arr.filter(r => r.visible !== false);
+      if (filter === 'hidden')  arr = arr.filter(r => r.visible === false);
+
+      if (!arr.length) {
+        list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px;">No hay reseñas todavía.</div>';
+        return;
+      }
+
+      list.innerHTML = arr.map(r => {
+        const isHidden = r.visible === false;
+        const stars = '★'.repeat(r.stars) + '☆'.repeat(5 - r.stars);
+        return `
+          <div class="item-row" style="${isHidden ? 'opacity:0.45;' : ''}">
+            <div class="item-info" style="flex:1;">
+              <div class="item-name" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                ${r.name}
+                <span style="color:var(--yellow); font-size:0.9rem;">${stars}</span>
+                ${isHidden ? '<span style="font-size:0.6rem;color:var(--muted);border:1px solid var(--muted);padding:2px 6px;">OCULTA</span>' : ''}
+              </div>
+              <div class="item-meta" style="margin-top:4px;">
+                <span style="color:var(--yellow); font-size:0.75rem;">${r.show}</span>
+                &nbsp;·&nbsp; ${r.date}
+              </div>
+              <div style="font-size:0.83rem; color:rgba(245,237,214,0.7); margin-top:6px; font-style:italic; line-height:1.5;">"${r.text}"</div>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:6px; flex-shrink:0;">
+              <button onclick="toggleReviewVisibility('${r._key}', ${isHidden})"
+                style="background:rgba(232,168,32,0.12);border:1px solid rgba(232,168,32,0.35);color:var(--yellow);font-size:0.72rem;padding:6px 12px;cursor:pointer;font-family:'DM Sans',sans-serif;white-space:nowrap;">
+                ${isHidden ? '👁 MOSTRAR' : '🙈 OCULTAR'}
+              </button>
+              <button class="btn-delete" onclick="deleteReview('${r._key}')">ELIMINAR</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    });
+  });
+}
+
+function toggleReviewVisibility(key, currentlyHidden) {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'reviews/' + key)).then(snap => {
+      const review = snap.val();
+      if (!review) return;
+      review.visible = currentlyHidden; // si estaba oculta, ahora visible y viceversa
+      window._dbSet(window._dbRef(window._db, 'reviews/' + key), review)
+        .then(() => { toast(currentlyHidden ? 'Reseña visible en la web' : 'Reseña ocultada'); loadReviews(); })
+        .catch(() => toast('Error al actualizar', true));
+    });
+  });
+}
+
+function deleteReview(key) {
+  if (!confirm('¿Eliminar esta reseña permanentemente?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'reviews/' + key), null)
+      .then(() => { toast('Reseña eliminada'); loadReviews(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+
+function savePriceConfig() {
+  const note   = document.getElementById('price-note').value.trim();
+  const prefix = document.getElementById('price-prefix').value.trim();
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'config'), { priceNote: note, pricePrefix: prefix })
+      .then(() => toast('Configuración guardada'))
+      .catch(() => toast('Error al guardar', true));
+  });
+}
+
+// ══════════════════════════════════════════════════════════
+// COUNTDOWN
+// ══════════════════════════════════════════════════════════
+
+let _cdActiveState = true;
+let _cdPreviewInterval = null;
+let _cdPreviewTarget = null;
+
+function loadCountdown() {
+  waitForDB(() => {
+    window._dbGet(window._dbRef(window._db, 'countdown')).then(snap => {
+      const cfg = snap.val();
+      const badge  = document.getElementById('cd-status-badge');
+      const info   = document.getElementById('cd-current-info');
+      if (!cfg) {
+        if (badge) { badge.textContent = 'INACTIVO'; badge.style.background='rgba(255,107,107,0.15)'; badge.style.borderColor='rgba(255,107,107,0.4)'; badge.style.color='var(--red)'; }
+        if (info)  info.textContent = 'No hay countdown configurado.';
+        return;
+      }
+      _cdActiveState = cfg.active !== false;
+      if (badge) {
+        badge.textContent   = _cdActiveState ? 'ACTIVO' : 'OCULTO';
+        badge.style.background   = _cdActiveState ? 'rgba(95,221,138,0.15)' : 'rgba(255,255,255,0.06)';
+        badge.style.borderColor  = _cdActiveState ? 'rgba(95,221,138,0.4)'  : 'rgba(255,255,255,0.15)';
+        badge.style.color        = _cdActiveState ? 'var(--green)'          : 'var(--muted)';
+      }
+      updateToggleButtons(_cdActiveState);
+      if (info) info.innerHTML = '<b>' + (cfg.title||'') + '</b><br>' + (cfg.subtitle||'') + '<br>📅 ' + (cfg.datetime||'') + '<br>⏰ Expirado: ' + (cfg.expiredMsg||'');
+      // Rellenar formulario
+      const inp = id => document.getElementById(id);
+      if (inp('cd-title-inp'))    inp('cd-title-inp').value    = cfg.title    || '';
+      if (inp('cd-subtitle-inp')) inp('cd-subtitle-inp').value = cfg.subtitle || '';
+      if (inp('cd-expired-inp'))  inp('cd-expired-inp').value  = cfg.expiredMsg || '';
+      if (cfg.datetime) {
+        const [d, t] = cfg.datetime.split('T');
+        if (inp('cd-date-inp')) inp('cd-date-inp').value = d;
+        if (inp('cd-time-inp')) inp('cd-time-inp').value = t ? t.slice(0,5) : '';
+      }
+      updatePreview();
+    });
+  });
+}
+
+function updatePreview() {
+  const dateVal = (document.getElementById('cd-date-inp') || {}).value;
+  const timeVal = (document.getElementById('cd-time-inp') || {value:'19:00'}).value || '19:00';
+  if (!dateVal) return;
+  clearInterval(_cdPreviewInterval);
+  _cdPreviewTarget = new Date(dateVal + 'T' + timeVal + ':00');
+  tickPreview();
+  _cdPreviewInterval = setInterval(tickPreview, 1000);
+}
+
+function tickPreview() {
+  if (!_cdPreviewTarget) return;
+  const diff = _cdPreviewTarget - new Date();
+  const pad  = n => String(n).padStart(2,'0');
+  if (diff <= 0) {
+    ['days','hours','mins','secs'].forEach(k => { const el = document.getElementById('cdp-'+k); if(el) el.textContent='00'; });
+    clearInterval(_cdPreviewInterval);
+    return;
+  }
+  const get = id => document.getElementById('cdp-' + id);
+  if (get('days'))  get('days').textContent  = pad(Math.floor(diff/(1000*60*60*24)));
+  if (get('hours')) get('hours').textContent = pad(Math.floor((diff%(1000*60*60*24))/(1000*60*60)));
+  if (get('mins'))  get('mins').textContent  = pad(Math.floor((diff%(1000*60*60))/(1000*60)));
+  if (get('secs'))  get('secs').textContent  = pad(Math.floor((diff%(1000*60))/1000));
+}
+
+function setCountdownActive(val) {
+  _cdActiveState = val;
+  updateToggleButtons(val);
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'countdown/active'), val)
+      .then(() => toast(val ? 'Banner activado' : 'Banner ocultado'))
+      .catch(() => toast('Error al guardar', true));
+  });
+}
+
+function updateToggleButtons(active) {
+  const on  = document.getElementById('cd-toggle-on');
+  const off = document.getElementById('cd-toggle-off');
+  if (!on || !off) return;
+  on.style.background  = active ? 'var(--yellow)' : 'rgba(255,255,255,0.06)';
+  on.style.color       = active ? '#111'          : 'var(--muted)';
+  on.style.border      = active ? '1px solid var(--yellow)' : '1px solid rgba(255,255,255,0.12)';
+  off.style.background = !active ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.06)';
+  off.style.color      = !active ? 'var(--red)'            : 'var(--muted)';
+  off.style.border     = !active ? '1px solid rgba(255,107,107,0.4)' : '1px solid rgba(255,255,255,0.12)';
+}
+
+function saveCountdown() {
+  const v = id => (document.getElementById(id) || {value:''}).value.trim();
+  const title      = v('cd-title-inp');
+  const subtitle   = v('cd-subtitle-inp');
+  const date       = v('cd-date-inp');
+  const time       = v('cd-time-inp') || '19:00';
+  const expiredMsg = v('cd-expired-inp');
+  if (!title) { toast('El título es obligatorio', true); return; }
+  if (!date)  { toast('Selecciona la fecha del evento', true); return; }
+  const cfg = {
+    title, subtitle,
+    datetime: date + 'T' + time + ':00',
+    expiredMsg: expiredMsg || '🎉 ¡HOY ES EL DÍA!',
+    active: _cdActiveState,
+    updatedAt: Date.now()
+  };
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'countdown'), cfg)
+      .then(() => { toast('Countdown guardado ✓'); loadCountdown(); })
+      .catch(() => toast('Error al guardar', true));
+  });
+}
+
+function deleteCountdown() {
+  if (!confirm('¿Eliminar el banner countdown?')) return;
+  waitForDB(() => {
+    window._dbSet(window._dbRef(window._db, 'countdown'), null)
+      .then(() => { toast('Banner eliminado'); loadCountdown(); })
+      .catch(() => toast('Error al eliminar', true));
+  });
+}
+
+document.addEventListener('input', function(e) {
+  const ids = ['cd-title-inp','cd-subtitle-inp','cd-date-inp','cd-time-inp'];
+  if (ids.includes(e.target.id)) updatePreview();
+});
+
+window.loadCountdown      = loadCountdown;
+window.saveCountdown      = saveCountdown;
+window.deleteCountdown    = deleteCountdown;
+window.setCountdownActive = setCountdownActive;
+
+</script>
+
+<script>
+// ══ PANEL COMUNIDAD ══
+var _cfFilter = 'all';
+var _cfUnsubs = [];
+
+function loadComunidad(filter) {
+  _cfFilter = filter || 'all';
+  ['all','comments','likes'].forEach(function(f) {
+    var btn = document.getElementById('cf-' + f);
+    if (!btn) return;
+    btn.style.background = f === _cfFilter ? 'rgba(232,168,32,0.15)' : 'transparent';
+    btn.style.color      = f === _cfFilter ? 'var(--yellow)' : 'rgba(255,255,255,0.4)';
+    btn.style.borderColor = f === _cfFilter ? 'rgba(232,168,32,0.3)' : 'rgba(255,255,255,0.08)';
+  });
+
+  _cfUnsubs.forEach(function(u) { try { u(); } catch(e){} });
+  _cfUnsubs = [];
+
+  if (!window._fb) return;
+  var db = window._fb.db, ref = window._fb.ref, onValue = window._fb.onValue;
+
+  var likesData = {}, commentsData = {}, loaded = 0;
+
+  function tryRender() {
+    loaded++;
+    if (loaded < 2) return;
+
+    var allIds = Array.from(new Set([].concat(Object.keys(likesData), Object.keys(commentsData))));
+
+    // Stats
+    var totalLikes = 0, totalComments = 0, photosActive = 0;
+    allIds.forEach(function(id) {
+      var l = (likesData[id] && likesData[id].count) || 0;
+      var n = commentsData[id] ? Object.keys(commentsData[id]).length : 0;
+      totalLikes    += l;
+      totalComments += n;
+      if (l || n) photosActive++;
+    });
+    var sl = document.getElementById('stat-likes');
+    var sc = document.getElementById('stat-comments');
+    var sp = document.getElementById('stat-photos');
+    if (sl) sl.textContent = totalLikes;
+    if (sc) sc.textContent = totalComments;
+    if (sp) sp.textContent = photosActive;
+
+    // Filtrar
+    var ids = allIds.filter(function(id) {
+      if (_cfFilter === 'comments') return commentsData[id] && Object.keys(commentsData[id]).length;
+      if (_cfFilter === 'likes')    return likesData[id] && likesData[id].count;
+      return true;
+    });
+
+    ids.sort(function(a,b) {
+      var ca = commentsData[a] ? Object.keys(commentsData[a]).length : 0;
+      var cb = commentsData[b] ? Object.keys(commentsData[b]).length : 0;
+      return cb - ca;
+    });
+
+    var list = document.getElementById('comunidad-list');
+    if (!list) return;
+    list.innerHTML = '';
+
+    if (!ids.length) {
+      list.innerHTML = '<div style="color:var(--muted);font-size:0.85rem;padding:20px 0;">Sin actividad todavía.</div>';
+      return;
+    }
+
+    ids.forEach(function(pid) {
+      var likes    = (likesData[pid] && likesData[pid].count) || 0;
+      var commsRaw = commentsData[pid] || {};
+      list.appendChild(buildPhotoCard(pid, likes, commsRaw));
+    });
+  }
+
+  var u1 = onValue(ref(db, 'gallery_likes'), function(snap) {
+    likesData = snap.val() || {};
+    tryRender();
+  });
+  var u2 = onValue(ref(db, 'gallery_comments'), function(snap) {
+    commentsData = snap.val() || {};
+    tryRender();
+  });
+  _cfUnsubs.push(u1, u2);
+}
+
+function buildPhotoCard(pid, likes, commsData) {
+  var comms = Object.entries(commsData||{}).map(function(e) { return Object.assign({_key:e[0]},e[1]); });
+  comms.sort(function(a,b){ return (a.ts||0)-(b.ts||0); });
+
+  var card = document.createElement('div');
+  card.style.cssText = 'border:1px solid rgba(255,255,255,0.07);border-radius:4px;overflow:hidden;margin-bottom:12px;';
+
+  // Header
+  var header = document.createElement('div');
+  header.style.cssText = 'display:flex;align-items:center;gap:16px;padding:14px 18px;';
+  var info = document.createElement('div');
+  info.style.cssText = 'flex:1;min-width:0;';
+  var pidEl = document.createElement('div');
+  pidEl.style.cssText = 'font-family:monospace;font-size:0.75rem;color:rgba(255,255,255,0.3);margin-bottom:4px;';
+  pidEl.textContent = pid;
+  var stats = document.createElement('div');
+  stats.style.cssText = 'display:flex;gap:16px;';
+  stats.innerHTML = '<span style="font-size:0.8rem;color:var(--muted);">&#10084; <strong style="color:var(--yellow);">' + likes + '</strong></span>'
+                  + '<span style="font-size:0.8rem;color:var(--muted);">&#128172; <strong style="color:var(--yellow);">' + comms.length + '</strong></span>';
+  info.appendChild(pidEl);
+  info.appendChild(stats);
+  header.appendChild(info);
+  if (comms.length) {
+    var delAllBtn = document.createElement('button');
+    delAllBtn.style.cssText = 'font-size:0.72rem;padding:6px 12px;background:rgba(255,59,59,0.12);color:#ff6b6b;border:1px solid rgba(255,59,59,0.2);cursor:pointer;border-radius:2px;white-space:nowrap;flex-shrink:0;';
+    delAllBtn.textContent = 'Borrar todos';
+    (function(p){ delAllBtn.addEventListener('click', function(){ deleteAllComments(p); }); }(pid));
+    header.appendChild(delAllBtn);
+  }
+  card.appendChild(header);
+
+  // Comentarios
+  var commWrap = document.createElement('div');
+  if (comms.length) {
+    comms.forEach(function(cm) {
+      var d    = new Date(cm.ts||Date.now());
+      var time = d.toLocaleDateString('es',{day:'numeric',month:'short'}) + ' · ' + d.toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'});
+      var ini  = (cm.name||'?')[0].toUpperCase();
+      var row  = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:12px;padding:12px 18px;border-top:1px solid rgba(255,255,255,0.04);';
+      var avatar = document.createElement('div');
+      avatar.style.cssText = 'width:32px;height:32px;border-radius:50%;background:rgba(232,168,32,0.15);display:flex;align-items:center;justify-content:center;font-size:0.9rem;flex-shrink:0;color:var(--yellow);';
+      avatar.textContent = ini;
+      var body = document.createElement('div');
+      body.style.cssText = 'flex:1;min-width:0;';
+      body.innerHTML = '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;"><span style="font-size:0.85rem;font-weight:600;color:var(--yellow);">' + safeEsc(cm.name) + '</span><span style="font-size:0.7rem;color:rgba(255,255,255,0.25);">' + time + '</span></div><div style="font-size:0.83rem;color:rgba(255,255,255,0.8);margin-top:3px;">' + safeEsc(cm.text) + '</div>';
+      var delBtn = document.createElement('button');
+      delBtn.style.cssText = 'background:none;border:none;color:rgba(255,80,80,0.5);cursor:pointer;font-size:1rem;padding:4px 8px;flex-shrink:0;line-height:1;transition:color 0.2s;';
+      delBtn.title = 'Eliminar';
+      delBtn.textContent = '??';
+      delBtn.addEventListener('mouseover', function(){ this.style.color='#ff6b6b'; });
+      delBtn.addEventListener('mouseout',  function(){ this.style.color='rgba(255,80,80,0.5)'; });
+      (function(p,k){ delBtn.addEventListener('click', function(){ deleteSingleComment(p,k); }); }(pid, cm._key));
+      row.appendChild(avatar);
+      row.appendChild(body);
+      row.appendChild(delBtn);
+      commWrap.appendChild(row);
+    });
+  } else {
+    commWrap.innerHTML = '<div style="padding:12px 18px;font-size:0.8rem;color:rgba(255,255,255,0.2);border-top:1px solid rgba(255,255,255,0.04);">Sin comentarios</div>';
+  }
+  card.appendChild(commWrap);
+  return card;
+}
+
+function deleteSingleComment(photoId, key) {
+  if (!confirm('Eliminar este comentario?')) return;
+  if (!window._fb) return;
+  var db = window._fb.db, ref = window._fb.ref, remove = window._fb.remove;
+  remove(ref(db, 'gallery_comments/' + photoId + '/' + key))
+    .then(function() { if (typeof toast === 'function') toast('Comentario eliminado'); })
+    .catch(function() { if (typeof toast === 'function') toast('Error al eliminar', true); });
+}
+
+function deleteAllComments(photoId) {
+  if (!confirm('Eliminar todos los comentarios de esta foto?')) return;
+  if (!window._fb) return;
+  var db = window._fb.db, ref = window._fb.ref, remove = window._fb.remove;
+  remove(ref(db, 'gallery_comments/' + photoId))
+    .then(function() { if (typeof toast === 'function') toast('Comentarios eliminados'); })
+    .catch(function() { if (typeof toast === 'function') toast('Error al eliminar', true); });
+}
+
+function safeEsc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+window.loadComunidad       = loadComunidad;
+window.deleteSingleComment = deleteSingleComment;
+window.deleteAllComments   = deleteAllComments;
+
+// ══════════════════════════════════════════════════════════
+// NEWSLETTER
+// ══════════════════════════════════════════════════════════
+var _subscribers = [];
+var _nlMode = 'agenda';
+var _agendaShows = []; // shows cargados de Firebase para la semana
+
+// Inicializar fecha de la semana al lunes actual
+(function initWeekDate() {
+  var d = new Date();
+  var day = d.getDay(); // 0=dom
+  var diff = day === 0 ? -6 : 1 - day;
+  d.setDate(d.getDate() + diff);
+  var yyyy = d.getFullYear();
+  var mm = String(d.getMonth()+1).padStart(2,'0');
+  var dd = String(d.getDate()).padStart(2,'0');
+  var el = document.getElementById('nl-week-start');
+  if (el) el.value = yyyy+'-'+mm+'-'+dd;
+})();
+
+function setNlMode(mode) {
+  _nlMode = mode;
+  ['agenda','evento','personal'].forEach(function(m) {
+    var btn   = document.getElementById('nl-mode-'+m);
+    var panel = document.getElementById('nl-panel-'+m);
+    var active = m === mode;
+    if (btn)   { btn.style.background = active ? 'var(--yellow)' : 'rgba(255,255,255,0.07)'; btn.style.color = active ? '#000' : 'var(--muted)'; }
+    if (panel) { panel.style.display  = active ? (m === 'agenda' ? 'block' : 'flex') : 'none'; }
+  });
+  updateNlPreview();
+}
+
+// ── AGENDA SEMANAL ──────────────────────────────────────
+function loadAgendaShows() {
+  var dateVal = document.getElementById('nl-week-start').value;
+  if (!dateVal) { alert('Elige la fecha de inicio de la semana'); return; }
+
+  // Helper: parsear "YYYY-MM-DD" como fecha LOCAL (sin desfase UTC)
+  function parseLocalDate(str) {
+    if (!str) return null;
+    var parts = str.split('-');
+    if (parts.length === 3) return new Date(+parts[0], +parts[1]-1, +parts[2]);
+    return new Date(str);
+  }
+
+  var monday = parseLocalDate(dateVal);
+  var sunday = new Date(monday); sunday.setDate(monday.getDate() + 6);
+  sunday.setHours(23,59,59);
+
+  var container = document.getElementById('nl-agenda-shows');
+  container.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">Cargando...</div>';
+
+  window._dbGet(window._dbRef(window._db, 'shows')).then(function(snap) {
+    var all = [];
+    if (snap.exists()) {
+      snap.forEach(function(ch) {
+        var s = ch.val(); s._id = ch.key;
+        // Parsear fecha del show como local (evita desfase UTC)
+        var dt = parseLocalDate(s.date || s.fecha || '');
+        if (dt && !isNaN(dt) && dt >= monday && dt <= sunday) {
+          // Sumar la hora real del show si existe
+          if (s.time) {
+            var parts = s.time.split(':');
+            dt.setHours(parseInt(parts[0]||0), parseInt(parts[1]||0), 0, 0);
+          }
+          all.push({...s, _dt: dt});
+        }
+      });
+    }
+    all.sort(function(a,b){ return a._dt - b._dt; });
+    _agendaShows = all;
+    renderAgendaShows();
+    updateNlPreview();
+  }).catch(function() {
+    container.innerHTML = '<div style="color:#f87171;font-size:0.78rem;">Error cargando shows.</div>';
+  });
+}
+
+function renderAgendaShows() {
+  var container = document.getElementById('nl-agenda-shows');
+  if (!_agendaShows.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.78rem;padding:8px 0;">No hay shows esta semana.</div>';
+    return;
+  }
+  var DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+  container.innerHTML = _agendaShows.map(function(s, i) {
+    var label = s.dayLabel && s.timeLabel ? (s.dayLabel + ' · ' + s.timeLabel) : s._dt ? (DIAS[s._dt.getDay()] + ' ' + s._dt.getDate() + ' · ' + (s._dt.getHours()+'').padStart(2,'0') + ':' + (s._dt.getMinutes()+'').padStart(2,'0')) : '—';
+    var esLibre = (s.type === 'free');
+    var tipoLabel = esLibre ? '✅ Entrada Libre' : '🎟 Con Cover';
+    return '<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.07);padding:10px 12px;display:flex;flex-direction:column;gap:6px;">' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+        '<div style="font-size:0.75rem;color:#fff;font-weight:500;flex:1;">' + safeEsc(s.name||s.title||s.nombre||'Show') + '</div>' +
+        '<div style="font-size:0.62rem;color:var(--yellow);">' + label + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:6px;align-items:center;">' +
+        '<span style="font-size:0.62rem;letter-spacing:1px;color:'+(esLibre?'#5fdd8a':'var(--blue-neon)')+';border:1px solid '+(esLibre?'#5fdd8a':'var(--blue-neon)')+';padding:2px 8px;flex-shrink:0;">'+tipoLabel+'</span>' +
+        '<input data-i="'+i+'" data-field="link" oninput="updateNlPreview()" type="url" placeholder="https://link de compra..." value="'+(s.link||s.url||'')+'" style="flex:1;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.08);color:#fff;padding:4px 8px;font-size:0.68rem;outline:none;">' +
+        '<input type="hidden" data-i="'+i+'" data-field="tipo" value="'+(esLibre?'libre':'compra')+'">' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function getAgendaShowData(i) {
+  var tipoEl = document.querySelector('[data-i="'+i+'"][data-field="tipo"]');
+  var linkEl = document.querySelector('[data-i="'+i+'"][data-field="link"]');
+  return { tipo: tipoEl ? tipoEl.value : 'compra', link: linkEl ? linkEl.value.trim() : '' };
+}
+
+// ── PREVIEW EN TIEMPO REAL ──────────────────────────────
+function updateNlPreview() {
+  var r = buildNlContent();
+  document.getElementById('nl-preview-subject').textContent = r.subject || '— Asunto —';
+  document.getElementById('nl-preview-body').textContent    = r.body    || 'El mensaje aparecerá aquí...';
+}
+
+function buildNlContent() {
+  var DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  if (_nlMode === 'agenda') {
+    var dateVal = (document.getElementById('nl-week-start') || {}).value || '';
+    var weekLabel = '';
+    if (dateVal) {
+      var mo = new Date(dateVal+'T00:00:00');
+      var su = new Date(mo); su.setDate(mo.getDate()+6);
+      weekLabel = mo.getDate()+' al '+su.getDate()+' de '+mo.toLocaleString('es-VE',{month:'long'});
+    }
+    var subject = '🎭 Agenda Pizpa · Semana del ' + weekLabel;
+    var lines = ['📅 AGENDA DE LA SEMANA', weekLabel ? ('Del ' + weekLabel) : '', ''];
+    if (!_agendaShows.length) {
+      lines.push('(Carga los shows con el botón ↺)');
+    } else {
+      _agendaShows.forEach(function(s, i) {
+        var d = getAgendaShowData(i);
+        var dLabel = s.dayLabel && s.timeLabel ? (s.dayLabel + ' · ' + s.timeLabel) : s._dt ? (DIAS[s._dt.getDay()] + ' ' + s._dt.getDate() + ' · ' + (s._dt.getHours()+'').padStart(2,'0') + ':' + (s._dt.getMinutes()+'').padStart(2,'0') + 'h') : '';
+        lines.push('🎤 ' + (s.name||s.title||s.nombre||'Show'));
+        if (dLabel) lines.push('   📆 ' + dLabel);
+        var esLibreNl = (s.type === 'free' || d.tipo === 'libre');
+        if (esLibreNl)   lines.push('   ✅ Entrada libre');
+        else if (d.tipo === 'reserva') lines.push('   📋 Reserva: ' + (d.link || 'Reserva en pizpa.com'));
+        else lines.push('   🎟 Entradas: ' + (d.link || s.link || 'Ver en pizpa.com'));
+        lines.push('');
+      });
+    }
+    lines.push('—\nPizpa Comedy Club · C.C. Yamin Center, Altamira, Caracas');
+    return { subject, body: lines.join('\n') };
+  }
+
+  if (_nlMode === 'evento') {
+    var show  = (document.getElementById('nl-ev-show')  ||{}).value || '';
+    var fecha = (document.getElementById('nl-ev-date')  ||{}).value || '';
+    var desc  = (document.getElementById('nl-ev-desc')  ||{}).value || '';
+    var link  = (document.getElementById('nl-ev-link')  ||{}).value || '';
+    var tipo  = (document.getElementById('nl-ev-tipo')  ||{}).value || 'compra';
+    // Buscar nombre del show en el select
+    var sel = document.getElementById('nl-ev-show');
+    var showName = sel && sel.selectedIndex > 0 ? sel.options[sel.selectedIndex].text : show;
+    var subject = showName ? ('🎭 No te lo pierdas · ' + showName) : '🎭 Show Especial en Pizpa';
+    var cta = tipo==='libre' ? '✅ Entrada libre — ¡solo ven!' : tipo==='reserva' ? ('📋 Reserva tu mesa: ' + (link||'pizpa.com')) : ('🎟 Consigue tu entrada: ' + (link||'pizpa.com'));
+    var body = ['🔥 SHOW ESPECIAL EN PIZPA', '', showName, fecha ? ('📆 ' + fecha) : '', '', desc, '', cta, '', '—\nPizpa Comedy Club · C.C. Yamin Center, Altamira, Caracas'].filter(function(l,i,a){ return !(l==='' && a[i-1]===''); }).join('\n');
+    return { subject, body };
+  }
+
+  if (_nlMode === 'personal') {
+    var subject = (document.getElementById('nl-pers-subject')||{}).value || '';
+    var body    = (document.getElementById('nl-pers-body')   ||{}).value || '';
+    return { subject: subject || '💬 Un mensaje de Pizpa', body: body || '' };
+  }
+
+  return { subject: '', body: '' };
+}
+
+// ── ENVIAR — directo vía Resend API ────────────────────
+// ── CONFIGURACIÓN RESEND ───────────────────────────────
+var RESEND_API_KEY = 're_QcNouv2m_3LPr2J4mKa1ckjRSaPnjMGnJ';
+var RESEND_FROM    = 'Pizpa Comedy Club <hola@pizpa.fun>';
+
+async function sendNewsletter() {
+  if (!_subscribers.length) { setNlStatus('error', 'No hay suscriptores activos.'); return; }
+  var r = buildNlContent();
+  if (!r.subject || !r.body) { setNlStatus('error', 'Completa el contenido antes de enviar.'); return; }
+  if (!confirm('¿Enviar a ' + _subscribers.length + ' suscriptor' + (_subscribers.length > 1 ? 'es' : '') + '?')) return;
+
+  setNlStatus('info', 'Enviando...');
+  var btn = document.querySelector('[onclick="sendNewsletter()"]');
+  if (btn) { btn.disabled = true; btn.textContent = 'Enviando...'; }
+
+  // Construir HTML del email según el modo
+  var htmlBody;
+  if (_nlMode === 'agenda') {
+    htmlBody = buildAgendaEmailHtml(r);
+  } else {
+    htmlBody = '<div style="font-family:sans-serif;font-size:15px;line-height:1.7;color:#222;max-width:600px;margin:0 auto;padding:24px;">' +
+      '<img src="https://pizpa.fun/img/imagen_1.png" alt="Pizpa" style="height:40px;margin-bottom:20px;"><br>' +
+      r.body.replace(/\n/g, '<br>') +
+      '<br><br><hr style="border:none;border-top:1px solid #eee;margin:24px 0;">' +
+      '<p style="font-size:12px;color:#999;">Pizpa Comedy Club · C.C. Yamin Center, Altamira, Caracas<br>' +
+      'Para cancelar tu suscripción responde con CANCELAR a este correo.</p>' +
+      '</div>';
+  }
+
+  var emails = (_subscribers || _allSubscribers.filter(function(s){ return s.included !== false; })).map(function(s) { return s.email; });
+  var ok = 0, fail = 0, failMsg = '';
+
+  // Verificar que estamos en HTTPS (Resend requiere HTTPS, no funciona en file://)
+  if (location.protocol === 'file:') {
+    setNlStatus('error', '⚠️ Abre el admin desde pizpa.fun/admin.html — Resend no funciona en local.');
+    if (btn) { btn.disabled = false; btn.textContent = '📧 Enviar a todos'; }
+    return;
+  }
+
+  // Enviar uno por uno vía Resend API
+  for (var i = 0; i < emails.length; i++) {
+    setNlStatus('info', 'Enviando ' + (i + 1) + ' de ' + emails.length + '...');
+    try {
+      var res = await fetch('https://pizpa-mail.sampimp.workers.dev', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          from: RESEND_FROM,
+          to:   [emails[i]],
+          subject: r.subject,
+          html: htmlBody,
+          text: r.body
+        })
+      });
+      if (res.ok) {
+        ok++;
+      } else {
+        var errData = await res.json().catch(function(){return {};});
+        fail++;
+        failMsg = errData.message || res.status;
+      }
+    } catch(e) {
+      fail++;
+      failMsg = e.message || 'Error de red';
+    }
+  }
+
+  var msg = '✅ Enviados: ' + ok;
+  if (fail) msg += '  ❌ Fallidos: ' + fail + (failMsg ? ' (' + failMsg + ')' : '');
+  setNlStatus(fail === 0 ? 'ok' : 'error', msg);
+  if (btn) { btn.disabled = false; btn.textContent = '📧 Enviar a todos'; }
+}
+
+// ── AGENDA EMAIL HTML RICO ─────────────────────────────
+function buildAgendaEmailHtml(r) {
+  var DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+  var dateVal = (document.getElementById('nl-week-start') || {}).value || '';
+  var weekLabel = '';
+  if (dateVal) {
+    var mo = new Date(dateVal + 'T00:00:00');
+    var su = new Date(mo); su.setDate(mo.getDate() + 6);
+    var meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    weekLabel = mo.getDate() + ' al ' + su.getDate() + ' de ' + meses[mo.getMonth()];
+  }
+
+  // Construir bloques de cada show
+  var showsHtml = '';
+  _agendaShows.forEach(function(s, i) {
+    var d = getAgendaShowData(i);
+    var esLibre = (s.type === 'free' || d.tipo === 'libre');
+    var dLabel = s.dayLabel && s.timeLabel ? (s.dayLabel + ' · ' + s.timeLabel) : s._dt ? (DIAS[s._dt.getDay()] + ' ' + s._dt.getDate() + ' · ' + (s._dt.getHours()+'').padStart(2,'0') + ':' + (s._dt.getMinutes()+'').padStart(2,'0') + 'h') : '';
+    var nombre = s.name || s.title || s.nombre || 'Show';
+    var desc   = s.desc || '';
+    var link   = d.link || s.link || '';
+    var flyer  = s.flyerUrl || '';
+
+    var btnHtml = '';
+    if (esLibre) {
+      var waLink = 'https://wa.me/584127108047?text=' + encodeURIComponent('Hola! Quiero reservar para ' + nombre + (dLabel ? ' · ' + dLabel : ''));
+      btnHtml = '<a href="' + waLink + '" style="display:inline-block;background:#25D366;color:#ffffff;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;letter-spacing:1px;padding:12px 28px;text-decoration:none;border-radius:2px;">📲 RESERVAR POR WHATSAPP</a>';
+    } else if (link) {
+      btnHtml = '<a href="' + link + '" style="display:inline-block;background:#E8A820;color:#000000;font-family:Arial,sans-serif;font-size:13px;font-weight:bold;letter-spacing:1px;padding:12px 28px;text-decoration:none;border-radius:2px;">🎟 COMPRAR ENTRADA</a>';
+    }
+
+    var tagBg  = esLibre ? '#1a3a24' : '#1a2240';
+    var tagClr = esLibre ? '#5fdd8a' : '#7eb3ff';
+    var tagTxt = esLibre ? '✅ ENTRADA LIBRE' : '🎟 CON COVER';
+
+    showsHtml += '<!-- SHOW CARD -->' +
+      '<div style="background:#1c1c1b;border:1px solid rgba(255,255,255,0.08);margin-bottom:20px;overflow:hidden;">' +
+        // Flyer
+        (flyer ? '<img src="' + flyer + '" alt="' + nombre + '" style="width:100%;height:auto;display:block;">' : '') +
+        '<div style="padding:20px 24px;">' +
+          // Tag tipo
+          '<div style="display:inline-block;background:' + tagBg + ';color:' + tagClr + ';font-family:Arial,sans-serif;font-size:10px;font-weight:bold;letter-spacing:2px;padding:4px 12px;margin-bottom:12px;">' + tagTxt + '</div>' +
+          // Nombre
+          '<div style="font-family:Arial,sans-serif;font-size:22px;font-weight:900;color:#ffffff;letter-spacing:1px;margin-bottom:6px;line-height:1.2;">' + nombre + '</div>' +
+          // Fecha
+          (dLabel ? '<div style="font-family:Arial,sans-serif;font-size:13px;color:#E8A820;letter-spacing:1px;margin-bottom:10px;">📅 ' + dLabel + '</div>' : '') +
+          // Desc
+          (desc ? '<div style="font-family:Arial,sans-serif;font-size:13px;color:rgba(245,237,214,0.6);line-height:1.6;margin-bottom:16px;">' + desc + '</div>' : '') +
+          // Botón
+          (btnHtml ? '<div style="margin-top:4px;">' + btnHtml + '</div>' : '') +
+        '</div>' +
+      '</div>';
+  });
+
+  if (!showsHtml) {
+    showsHtml = '<p style="color:rgba(255,255,255,0.4);font-size:14px;text-align:center;padding:20px 0;">No hay shows cargados esta semana.</p>';
+  }
+
+  return '<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;padding:0;background:#111110;">' +
+    '<div style="max-width:600px;margin:0 auto;background:#111110;font-family:Arial,sans-serif;">' +
+
+    // HEADER con logo
+    '<div style="background:#111110;text-align:center;padding:36px 24px 24px;">' +
+      '<img src="https://pizpa.fun/img/imagen_1.png" alt="Pizpa Comedy Club" style="max-height:91px;max-width:340px;width:auto;display:inline-block;">' +
+    '</div>' +
+
+    // HERO text
+    '<div style="background:#E8A820;padding:28px 32px;text-align:center;">' +
+      '<div style="font-family:Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:4px;color:#000000;margin-bottom:8px;">AGENDA SEMANAL</div>' +
+      '<div style="font-family:Arial,sans-serif;font-size:28px;font-weight:900;color:#000000;line-height:1.15;margin-bottom:6px;">LA SEMANA SE PONE BUENA 🎤</div>' +
+      (weekLabel ? '<div style="font-family:Arial,sans-serif;font-size:13px;color:rgba(0,0,0,0.65);letter-spacing:1px;">Del ' + weekLabel + '</div>' : '') +
+    '</div>' +
+
+    // INTRO
+    '<div style="padding:28px 32px 8px;background:#161615;">' +
+      '<p style="font-family:Arial,sans-serif;font-size:15px;color:rgba(245,237,214,0.75);line-height:1.7;margin:0;">Estos son los shows que te tienen que sacar de la casa esta semana. Agarra tu mesa, trae a alguien que necesite reírse y prepárate para una noche que no vas a olvidar.</p>' +
+    '</div>' +
+
+    // SHOWS
+    '<div style="padding:16px 32px 8px;background:#161615;">' +
+      showsHtml +
+    '</div>' +
+
+    // NORMAS con GIF
+    '<div style="background:#1c1c1b;border-top:2px solid #E8A820;padding:28px 32px;margin-top:4px;">' +
+      '<div style="font-family:Arial,sans-serif;font-size:11px;font-weight:bold;letter-spacing:4px;color:#E8A820;margin-bottom:16px;">📋 ANTES DE VENIR, LEE ESTO</div>' +
+      '<img src="https://media.giphy.com/media/245oYTbugpaxvSBjTS/giphy.gif" alt="shh" style="width:100%;max-height:180px;object-fit:cover;display:block;margin-bottom:20px;border-radius:2px;">' +
+      '<ul style="font-family:Arial,sans-serif;font-size:14px;color:rgba(245,237,214,0.8);line-height:1.9;margin:0;padding:0 0 0 18px;">' +
+        '<li><strong style="color:#fff;">Llega temprano.</strong> Mínimo <strong style="color:#E8A820;">1 hora antes</strong> — para que escojas tu mesa con calma y te acomodes como se debe.</li>' +
+        '<li><strong style="color:#fff;">La fotito sí, la grabación no.</strong> Una foto o un video corto para la historia de IG está perfecto — etiquétanos <strong style="color:#E8A820;">@pizpafun</strong> y a la/el comediante. Después, guarda el teléfono y vive el momento. 📸</li>' +
+        '<li><strong style="color:#fff;">Mientras el comediante está en escena, silencio total.</strong> Si vas a hacer ruido, que sea una carcajada o un aplauso. De resto, shhhh. 🤫</li>' +
+        '<li><strong style="color:#fff;">Consumo obligatorio.</strong> Hay consumo mínimo, así que pide algo. Spoiler: la pizza y los tragos están buenos. No te quedes chupando hielo, que Sampins se infarta. 🧊😏</li><li><strong style="color:#fff;">Y lo más importante:</strong> ¡Disfruta cada segundo. Para eso viniste! 🍕😂</li>' +
+      '</ul>' +
+    '</div>' +
+
+    // FOOTER
+    '<div style="background:#0d0d0c;padding:24px 32px;text-align:center;">' +
+      '<img src="https://pizpa.fun/img/imagen_1.png" alt="Pizpa" style="max-height:42px;max-width:180px;width:auto;opacity:0.5;margin-bottom:12px;">' +
+      '<div style="font-family:Arial,sans-serif;font-size:11px;color:rgba(255,255,255,0.25);line-height:1.8;">Pizpa Comedy Club · C.C. Yamin Center, Altamira, Caracas<br>Para cancelar tu suscripción responde con CANCELAR a este correo.</div>' +
+    '</div>' +
+
+    '</div></body></html>';
+}
+
+// ── CARGAR shows en select de Evento Especial ──────────
+function loadShowsIntoEventSelect() {
+  window._dbGet(window._dbRef(window._db, 'shows')).then(function(snap) {
+    var sel = document.getElementById('nl-ev-show');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Elige un show —</option>';
+    if (!snap.exists()) return;
+    snap.forEach(function(ch) {
+      var s = ch.val();
+      var opt = document.createElement('option');
+      opt.value = ch.key;
+      opt.textContent = s.name || s.title || s.nombre || ch.key;
+      opt._data = s;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function fillEventoFromShow() {
+  var sel = document.getElementById('nl-ev-show');
+  if (!sel || sel.selectedIndex <= 0) return;
+  var opt = sel.options[sel.selectedIndex];
+  // Intentar rellenar fecha si el show tiene fecha
+  window._dbGet(window._dbRef(window._db, 'shows/'+sel.value)).then(function(snap) {
+    if (!snap.exists()) return;
+    var s = snap.val();
+    var DIAS = ['Domingo','Lunes','Martes','Miércoles','Jueves','Viernes','Sábado'];
+    var MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    if (s.date || s.fecha) {
+      var dt = new Date(s.date || s.fecha);
+      if (!isNaN(dt)) {
+        var label = DIAS[dt.getDay()] + ' ' + dt.getDate() + ' de ' + MESES[dt.getMonth()] + ' · ' + (dt.getHours()+'').padStart(2,'0') + ':' + (dt.getMinutes()+'').padStart(2,'0') + 'h';
+        document.getElementById('nl-ev-date').value = label;
+      }
+    }
+    if (s.link || s.url) document.getElementById('nl-ev-link').value = s.link || s.url;
+    var esLibre = (s.precio === '0' || s.precio === 0 || String(s.precio||'').toLowerCase().includes('libre'));
+    document.getElementById('nl-ev-tipo').value = esLibre ? 'libre' : 'compra';
+    updateNlPreview();
+  });
+}
+
+var _allSubscribers = [];
+
+function loadSubscribers() {
+  var db = window._db, ref = window._dbRef, onValue = window._dbOnValue;
+  onValue(ref(db, 'subscribers'), function(snap) {
+    var data = snap.val() || {};
+    _allSubscribers = Object.entries(data).map(function(e){ return Object.assign({id:e[0]}, e[1]); })
+      .filter(function(s){ return s.active !== false; })
+      .sort(function(a,b){ return (b.subscribedAt||0)-(a.subscribedAt||0); });
+    _subscribers = _allSubscribers.filter(function(s){ return s.included !== false; });
+
+    document.getElementById('nl-total').textContent  = _allSubscribers.length;
+    document.getElementById('nl-active').textContent = _subscribers.length;
+    document.getElementById('nl-last').textContent   = _allSubscribers.length
+      ? (_allSubscribers[0].name + ' — ' + new Date(_allSubscribers[0].subscribedAt).toLocaleDateString('es-VE'))
+      : '—';
+
+    renderSubscribers(_allSubscribers);
+  });
+  loadShowsIntoEventSelect();
+}
+
+function renderSubscribers(list) {
+  var container = document.getElementById('nl-subscribers-list');
+  var countEl = document.getElementById('nl-filter-count');
+  if (countEl) countEl.textContent = list.length + ' de ' + _allSubscribers.length;
+  if (!list.length) {
+    container.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:12px 0;">Sin resultados.</div>';
+    return;
+  }
+  container.innerHTML = list.map(function(s, i) {
+    var isIncluded = s.included !== false;
+    var bdayStr = s.bday ? ('🎂 ' + s.bday) : '';
+    var subDate = s.subscribedAt ? new Date(s.subscribedAt).toLocaleDateString('es-VE') : '';
+    var rowBg   = isIncluded ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.01)';
+    var rowBdr  = isIncluded ? 'rgba(255,255,255,0.05)' : 'rgba(255,255,255,0.02)';
+    var rowOp   = isIncluded ? '1' : '0.45';
+    var btnBg   = isIncluded ? 'rgba(95,221,138,0.15)' : 'rgba(255,255,255,0.07)';
+    var btnBdr  = isIncluded ? 'rgba(95,221,138,0.4)'  : 'rgba(255,255,255,0.1)';
+    var btnClr  = isIncluded ? '#5fdd8a' : 'var(--muted)';
+    var btnTxt  = isIncluded ? '✓ INC' : '✗ EXC';
+    var sid     = safeEsc(s.id);
+    var row = '<div style="display:flex;align-items:center;gap:10px;padding:10px 14px;background:' + rowBg + ';border:1px solid ' + rowBdr + ';opacity:' + rowOp + ';">';
+    row += '<div style="font-size:0.62rem;color:var(--muted);min-width:20px;text-align:right;">' + (i+1) + '</div>';
+    row += '<div style="flex:1;min-width:0;">';
+    row += '<div style="font-size:0.83rem;color:#fff;font-weight:500;">' + safeEsc(s.name) + '</div>';
+    row += '<div style="font-size:0.72rem;color:rgba(232,168,32,0.8);">' + safeEsc(s.email) + '</div>';
+    if (bdayStr) row += '<div style="font-size:0.65rem;color:rgba(255,255,255,0.35);margin-top:2px;">' + bdayStr + '</div>';
+    row += '</div>';
+    row += '<div style="font-size:0.62rem;color:var(--muted);text-align:right;">' + subDate + '</div>';
+    row += '<button data-id="' + sid + '" data-inc="' + isIncluded + '" onclick="toggleIncluded(this.dataset.id, this.dataset.inc===\'true\')" style="background:' + btnBg + ';border:1px solid ' + btnBdr + ';color:' + btnClr + ';font-size:0.62rem;padding:4px 8px;cursor:pointer;flex-shrink:0;font-family:Bebas Neue,sans-serif;letter-spacing:1px;">' + btnTxt + '</button>';
+    row += '<button data-id="' + sid + '" onclick="removeSubscriber(this.dataset.id)" style="background:none;border:1px solid rgba(255,100,100,0.25);color:rgba(255,100,100,0.5);font-size:0.62rem;padding:4px 8px;cursor:pointer;flex-shrink:0;">✕</button>';
+    row += '</div>';
+    return row;
+  }).join('');
+}
+
+
+function filterSubscribers() {
+  var q = (document.getElementById('nl-search').value || '').toLowerCase();
+  var status = document.getElementById('nl-filter-status').value;
+  var filtered = _allSubscribers.filter(function(s) {
+    var matchQ = !q || (s.name||'').toLowerCase().includes(q) || (s.email||'').toLowerCase().includes(q);
+    var matchS = status === 'all' ||
+      (status === 'included' && s.included !== false) ||
+      (status === 'excluded' && s.included === false) ||
+      (status === 'bday' && s.bday);
+    return matchQ && matchS;
+  });
+  renderSubscribers(filtered);
+}
+window.filterSubscribers = filterSubscribers;
+
+function toggleIncluded(id, currentlyIncluded) {
+  var newVal = !currentlyIncluded;
+  window._dbSet(window._dbRef(window._db, 'subscribers/' + id + '/included'), newVal)
+    .then(function(){ toast(newVal ? '✅ Incluido en envíos' : '⏸ Excluido de envíos'); })
+    .catch(function(){ toast('Error', true); });
+}
+window.toggleIncluded = toggleIncluded;
+
+function setAllSubscribersIncluded(val) {
+  // Leer directamente de Firebase para no depender del estado local
+  window._dbGet(window._dbRef(window._db, 'subscribers')).then(function(snap) {
+    if (!snap.exists()) return;
+    var ids = [];
+    snap.forEach(function(ch) { ids.push(ch.key); });
+    if (!ids.length) return;
+    var label = val ? '¿Incluir a todos los suscriptores en el próximo envío?' : '¿Excluir a todos los suscriptores del próximo envío?';
+    if (!confirm(label)) return;
+    Promise.all(ids.map(function(id) {
+      return window._dbSet(window._dbRef(window._db, 'subscribers/' + id + '/included'), val);
+    })).then(function() {
+      toast(val ? '✓ Todos incluidos' : '✕ Todos excluidos');
+    }).catch(function(e) {
+      toast('Error al actualizar: ' + (e.message || e), true);
+    });
+  }).catch(function(e) {
+    toast('Error al leer suscriptores: ' + (e.message || e), true);
+  });
+}
+
+function includeAllSubscribers() { setAllSubscribersIncluded(true);  }
+function excludeAllSubscribers() { setAllSubscribersIncluded(false); }
+
+window.includeAllSubscribers = includeAllSubscribers;
+window.excludeAllSubscribers = excludeAllSubscribers;
+
+function removeSubscriber(id) {
+  if (!confirm('¿Eliminar este suscriptor?')) return;
+  window._dbSet(window._dbRef(window._db, 'subscribers/'+id+'/active'), false)
+    .then(function(){ toast('Suscriptor eliminado'); });
+}
+
+function setNlStatus(type, msg) {
+  var el = document.getElementById('nl-send-status');
+  el.style.display = 'block';
+  el.style.background = type==='ok' ? 'rgba(95,221,138,0.1)' : type==='error' ? 'rgba(248,113,113,0.1)' : 'rgba(255,255,255,0.05)';
+  el.style.color  = type==='ok' ? '#5fdd8a' : type==='error' ? '#f87171' : 'rgba(255,255,255,0.6)';
+  el.style.border = '1px solid '+(type==='ok'?'rgba(95,221,138,0.3)':type==='error'?'rgba(248,113,113,0.3)':'rgba(255,255,255,0.1)');
+  el.style.padding = '10px 14px';
+  el.textContent = msg;
+}
+
+function exportSubscribersCSV() {
+  if (!_subscribers.length) { alert('No hay suscriptores.'); return; }
+  var rows = [['Nombre','Email','Cumpleaños','Estado','Fecha'].join(',')].concat(_allSubscribers.map(function(s){
+    return ['"'+s.name+'"', '"'+s.email+'"', s.subscribedAt?new Date(s.subscribedAt).toLocaleDateString('es-VE'):''].join(',');
+  })).join('\n');
+  var a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(rows);
+  a.download = 'pizpa-suscriptores.csv';
+  a.click();
+}
+
+// Inputs de agenda/evento/personal disparan preview
+['nl-week-start','nl-ev-date','nl-ev-desc','nl-ev-link','nl-ev-tipo'].forEach(function(id){
+  var el = document.getElementById(id);
+  if (el) el.addEventListener('input', updateNlPreview);
+  if (el) el.addEventListener('change', updateNlPreview);
+});
+
+// Inicializar en modo agenda
+setNlMode('agenda');
+
+var _origSwitchPanel = window.switchPanel;
+window.switchPanel = function(name) {
+  _origSwitchPanel(name);
+  if (name === 'newsletter') loadSubscribers();
+  if (name === 'splash') { loadSplash(); bindSplashPreviewListeners(); }
+};
+
+window.setNlMode          = setNlMode;
+window.loadAgendaShows    = loadAgendaShows;
+window.updateNlPreview    = updateNlPreview;
+window.fillEventoFromShow = fillEventoFromShow;
+window.sendNewsletter     = sendNewsletter;
+window.loadSplash             = loadSplash;
+window.setSplashActive        = setSplashActive;
+window.setSplashTimer         = setSplashTimer;
+window.saveSplash             = saveSplash;
+window.deleteSplash           = deleteSplash;
+window.bindSplashPreviewListeners = bindSplashPreviewListeners;
+window.removeSubscriber   = removeSubscriber;
+window.filterSubscribers  = filterSubscribers;
+window.toggleIncluded     = toggleIncluded;
+window.renderSubscribers  = renderSubscribers;
+window.exportSubscribersCSV = exportSubscribersCSV;
+</script>
+
+
+    <div class="panel" id="panel-vibras">
+      <div class="panel-title">✨ Vibras</div>
+      <div class="panel-subtitle">Mensajes de los visitantes. Puedes ocultarlos o eliminarlos.</div>
+      <div id="vibras-admin-list" style="margin-top:16px;">
+        <div style="color:var(--muted);font-size:0.82rem;padding:12px 0;">Cargando vibras...</div>
+      </div>
+    </div>
+
+<script>
+// ── VIBRAS ADMIN ──────────────────────────────────────────
+function loadVibrasAdmin() {
+  if (!window._db) return;
+  var listEl = document.getElementById('vibras-admin-list');
+  if (!listEl) return;
+  window._dbOnValue(window._dbRef(window._db, 'vibras'), function(snap) {
+    var data = snap.val();
+    listEl.innerHTML = '';
+    if (!data) {
+      listEl.innerHTML = '<div style="color:var(--muted);font-size:0.82rem;padding:12px 0;">No hay vibras aún.</div>';
+      return;
+    }
+    var items = Object.entries(data).sort(function(a,b){ return b[1].ts - a[1].ts; });
+    items.forEach(function(entry) {
+      var key = entry[0], v = entry[1];
+      var oculto = v.visible === false;
+      var div = document.createElement('div');
+      div.style.cssText = 'background:var(--card);border:1px solid rgba(255,255,255,0.07);padding:12px 16px;margin-bottom:8px;display:flex;align-items:flex-start;gap:12px;opacity:' + (oculto ? '0.4' : '1');
+      var msgDiv = document.createElement('div');
+      msgDiv.style.cssText = 'flex:1';
+      msgDiv.innerHTML = '<div style="color:#fff;font-size:0.88rem;line-height:1.5;">' + v.msg.replace(/</g,'&lt;') + '</div>'
+        + '<div style="color:var(--muted);font-size:0.65rem;margin-top:4px;letter-spacing:1px;">' + (v.autor || 'Anónimo') + ' · ' + new Date(v.ts).toLocaleString('es-VE') + (oculto ? ' · OCULTA' : '') + '</div>';
+      var btnToggle = document.createElement('button');
+      btnToggle.textContent = oculto ? 'MOSTRAR' : 'OCULTAR';
+      btnToggle.style.cssText = 'background:none;border:1px solid rgba(255,255,255,0.2);color:var(--muted);font-size:0.7rem;padding:4px 10px;cursor:pointer;white-space:nowrap;';
+      btnToggle.onclick = (function(k, vis){ return function(){ toggleVibra(k, vis); }; })(key, oculto);
+      var btnDel = document.createElement('button');
+      btnDel.textContent = 'BORRAR';
+      btnDel.style.cssText = 'background:none;border:1px solid rgba(255,80,80,0.4);color:rgba(255,100,100,0.8);font-size:0.7rem;padding:4px 10px;cursor:pointer;white-space:nowrap;margin-left:6px;';
+      btnDel.onclick = (function(k){ return function(){ deleteVibra(k); }; })(key);
+      div.appendChild(msgDiv);
+      div.appendChild(btnToggle);
+      div.appendChild(btnDel);
+      listEl.appendChild(div);
+    });
+  });
+}
+
+function toggleVibra(key, eraOculto) {
+  window._dbSet(window._dbRef(window._db, 'vibras/' + key + '/visible'), !eraOculto);
+}
+
+function deleteVibra(key) {
+  if (!confirm('¿Eliminar esta vibra?')) return;
+  window._dbRemove(window._dbRef(window._db, 'vibras/' + key));
+}
+
+window.loadVibrasAdmin = loadVibrasAdmin;
+window.toggleVibra = toggleVibra;
+window.deleteVibra = deleteVibra;
+
+var _origSwitchPanelVibras = window.switchPanel;
+window.switchPanel = function(name) {
+  _origSwitchPanelVibras(name);
+  if (name === 'vibras') loadVibrasAdmin();
+};
+</script>
+
+<script>
+// ── CUMPLEAÑEROS DE HOY ──────────────────────────────────────
+function loadBirthdaysToday() {
+  var listEl = document.getElementById('bday-today-list');
+  var waBtn  = document.getElementById('bday-wa-btn');
+  if (!listEl || !window._db) return;
+
+  // Fecha de hoy DD/MM
+  var now = new Date();
+  // Venezuela UTC-4
+  var vzla = new Date(now.getTime() - (4 * 60 * 60 * 1000));
+  var day   = String(vzla.getUTCDate()).padStart(2,'0');
+  var month = String(vzla.getUTCMonth() + 1).padStart(2,'0');
+  var today = day + '/' + month;
+
+  window._dbOnValue(window._dbRef(window._db, 'subscribers'), function(snap) {
+    var data = snap.val();
+    listEl.innerHTML = '';
+
+    if (!data) {
+      listEl.textContent = 'No hay suscriptores.';
+      return;
+    }
+
+    var cumples = Object.values(data).filter(function(s) {
+      if (!s.bday) return false;
+      var parts = s.bday.split('/');
+      if (parts.length !== 2) return false;
+      var d = parts[0].padStart(2,'0');
+      var m = parts[1].padStart(2,'0');
+      return d + '/' + m === today;
+    });
+
+    if (cumples.length === 0) {
+      listEl.innerHTML = '<span style="color:rgba(255,255,255,0.35);">Nadie cumple hoy 📭</span>';
+      if (waBtn) waBtn.style.display = 'none';
+      return;
+    }
+
+    // Mostrar lista
+    cumples.forEach(function(s) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);';
+      row.innerHTML = '<span style="font-size:1.1rem;">🎂</span>'
+        + '<div>'
+        + '<div style="color:#fff;font-size:0.88rem;font-weight:500;">' + (s.name || s.nombre || 'Sin nombre') + '</div>'
+        + '<div style="color:rgba(255,255,255,0.4);font-size:0.7rem;">' + (s.email || '') + '</div>'
+        + '</div>';
+      listEl.appendChild(row);
+    });
+
+    // Mostrar botón WhatsApp
+    if (waBtn) {
+      waBtn.style.display = 'block';
+      waBtn._cumples = cumples;
+      waBtn._today = today;
+    }
+  });
+}
+
+function shareBirthdaysWhatsApp() {
+  var btn = document.getElementById('bday-wa-btn');
+  var cumples = btn._cumples || [];
+  var today   = btn._today || '';
+
+  if (!cumples.length) return;
+
+  var lines = ['Cumplea\u00F1eros de hoy ' + today, ''];
+  cumples.forEach(function(s, i) {
+    var line = (i+1) + '. ' + (s.name || s.nombre || 'Sin nombre');
+    if (s.email) line += ' - ' + s.email;
+    lines.push(line);
+  });
+  lines.push('');
+  lines.push('Recuerden el cocktail de cortesia en Pizpa!');
+  var text = lines.join('\n');
+
+  var url = 'https://wa.me/?text=' + encodeURIComponent(text);
+  window.open(url, '_blank');
+}
+
+window.loadBirthdaysToday   = loadBirthdaysToday;
+window.shareBirthdaysWhatsApp = shareBirthdaysWhatsApp;
+
+// Cargar cuando se entra al panel newsletter
+var _origSwitchPanelBday = window.switchPanel;
+window.switchPanel = function(name) {
+  _origSwitchPanelBday(name);
+  if (name === 'newsletter') loadBirthdaysToday();
+};
+</script>
+
+</body>
+</html>
